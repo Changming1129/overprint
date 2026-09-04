@@ -1,0 +1,2575 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>佳林國中智慧獎狀套印與版面排版系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f1f5f9;
+        }
+
+        /* Certificate Font Presets */
+        .font-kai { font-family: 'DFKai-SB', '標楷體', 'BiauKai', 'KaiTi', 'Noto Serif TC', serif; }
+        .font-song { font-family: 'SimSun', '宋體', 'Songti TC', 'Noto Serif TC', serif; }
+        .font-hei { font-family: 'Microsoft JhengHei', '微軟正黑體', 'Noto Sans TC', sans-serif; }
+        .font-serif-tc { font-family: 'Noto Serif TC', serif; }
+        .font-sans-tc { font-family: 'Noto Sans TC', sans-serif; }
+
+        /* Strict Standard A4 Dimensions (842px x 595px at 72dpi ratio) */
+        .cert-canvas-container {
+            position: relative;
+            background-color: #ffffff;
+            box-shadow: 0 10px 30px -5px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.08);
+            user-select: none;
+            box-sizing: border-box;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .a4-landscape {
+            width: 842px !important;
+            height: 595px !important;
+            min-width: 842px !important;
+            min-height: 595px !important;
+            max-width: 842px !important;
+            max-height: 595px !important;
+        }
+
+        .a4-portrait {
+            width: 595px !important;
+            height: 842px !important;
+            min-width: 595px !important;
+            min-height: 842px !important;
+            max-width: 595px !important;
+            max-height: 842px !important;
+        }
+
+        /* A4 Safety Margin Guideline */
+        .a4-guideline {
+            position: absolute;
+            inset: 38px;
+            border: 1px dashed rgba(59, 130, 246, 0.45);
+            pointer-events: none;
+            z-index: 10;
+        }
+        .a4-guideline::after {
+            content: "A4 列印安全邊界 (10mm)";
+            position: absolute;
+            top: 4px;
+            left: 6px;
+            font-size: 10px;
+            color: #3b82f6;
+            opacity: 0.6;
+            font-family: sans-serif;
+        }
+
+        /* Elements on canvas (zero internal padding to prevent coordinate deviation) */
+        .canvas-element {
+            position: absolute;
+            cursor: move;
+            box-sizing: border-box;
+            user-select: none;
+            outline: 1px dashed transparent;
+            transition: outline 0.12s ease, background-color 0.12s ease;
+        }
+
+        .canvas-element:hover {
+            outline: 1px dashed #3b82f6;
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .canvas-element.selected {
+            outline: 2px solid #2563eb;
+            background-color: rgba(37, 99, 235, 0.08);
+            z-index: 40;
+        }
+
+        /* Interactive Resize Handles */
+        .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #2563eb;
+            border: 2px solid #ffffff;
+            border-radius: 2px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            z-index: 50;
+        }
+        .resize-handle-se {
+            right: -5px;
+            bottom: -5px;
+            cursor: se-resize;
+        }
+        .resize-handle-e {
+            right: -5px;
+            top: calc(50% - 5px);
+            cursor: e-resize;
+        }
+
+        /* Text formatting classes - True WYSIWYG */
+        .writing-vertical {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+        }
+
+        .text-wrap-auto {
+            white-space: pre-wrap !important;
+            word-break: break-word !important;
+        }
+
+        .text-wrap-manual {
+            white-space: pre-wrap !important;
+            word-break: normal !important;
+        }
+
+        .text-wrap-none {
+            white-space: pre !important;
+        }
+
+        /* Alignment button state */
+        .align-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #2563eb;
+        }
+
+        .collapse-content.collapsed {
+            display: none !important;
+        }
+
+        /* Print Specific CSS */
+        @media print {
+            html, body {
+                width: 100% !important;
+                height: 100% !important;
+                background: white !important;
+                color: black !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .page-break {
+                page-break-after: always;
+                break-after: page;
+            }
+            
+            .print-cert-page {
+                position: relative !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+                page-break-inside: avoid !important;
+            }
+
+            @page {
+                margin: 0mm !important;
+            }
+        }
+
+        @media screen {
+            .print-only {
+                display: none !important;
+            }
+        }
+    </style>
+    <style id="custom-fonts-style"></style>
+</head>
+<body class="h-screen flex flex-col text-slate-800 overflow-hidden">
+
+    <header class="no-print bg-slate-900 text-white px-5 py-2.5 flex items-center justify-between shadow-md z-20 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 text-white p-2 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/30">
+                <i class="fa-solid fa-graduation-cap text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-bold tracking-wide flex items-center gap-2">
+                    佳林國中智慧獎狀套印與版面排版系統
+                    <span class="text-[10px] font-normal bg-blue-900/80 text-blue-200 px-2 py-0.5 rounded-full border border-blue-700">A4 所見即所得修正版</span>
+                </h1>
+                <p class="text-[11px] text-slate-400">嚴格對齊 A4 座標、支援自訂 1~3 欄清單辨識、手動 Enter/連續空白保留與批次套印</p>
+            </div>
+        </div>
+
+        <!-- Step Navigation Tabs -->
+        <div class="flex items-center space-x-1 bg-slate-800 p-1 rounded-xl border border-slate-700 text-xs">
+            <button onclick="switchStep(1)" id="step-btn-1" class="step-btn px-3.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 bg-blue-600 text-white shadow">
+                <span class="w-4 h-4 rounded-full bg-white/20 text-[10px] flex items-center justify-center font-bold">1</span>
+                <span>版面設計</span>
+            </button>
+            <button onclick="switchStep(2)" id="step-btn-2" class="step-btn px-3.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-700">
+                <span class="w-4 h-4 rounded-full bg-slate-700 text-[10px] flex items-center justify-center font-bold">2</span>
+                <span>匯入名冊</span>
+            </button>
+            <button onclick="switchStep(3)" id="step-btn-3" class="step-btn px-3.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-700">
+                <span class="w-4 h-4 rounded-full bg-slate-700 text-[10px] flex items-center justify-center font-bold">3</span>
+                <span>欄位對應</span>
+            </button>
+            <button onclick="switchStep(4)" id="step-btn-4" class="step-btn px-3.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-700">
+                <span class="w-4 h-4 rounded-full bg-slate-700 text-[10px] flex items-center justify-center font-bold">4</span>
+                <span>預覽套印</span>
+            </button>
+        </div>
+
+        <!-- Action Quick Buttons -->
+        <div class="flex items-center space-x-2">
+            <button onclick="loadSampleData()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-slate-200 border border-slate-600 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                <span>載入示範數據</span>
+            </button>
+            
+            <div class="flex items-center space-x-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
+                <button onclick="openExportModal()" title="匯出版面設定 JSON 檔" class="px-2.5 py-1 text-slate-300 hover:text-white text-xs hover:bg-slate-700 rounded transition flex items-center gap-1">
+                    <i class="fa-solid fa-file-export text-blue-400"></i>
+                    <span>匯出版面</span>
+                </button>
+                <label title="匯入版面設定 JSON 檔" class="px-2.5 py-1 text-slate-300 hover:text-white text-xs hover:bg-slate-700 rounded cursor-pointer transition flex items-center gap-1">
+                    <i class="fa-solid fa-file-import text-amber-400"></i>
+                    <span>匯入版面</span>
+                    <input type="file" id="import-config-input" accept=".json" onchange="importTemplateConfig(event)" class="hidden">
+                </label>
+            </div>
+
+            <button onclick="triggerPrint()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5">
+                <i class="fa-solid fa-print"></i>
+                <span>開始批次列印</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="no-print flex-1 flex overflow-hidden">
+        
+        <!-- STEP 1: 版面設計與畫布 (Designer View) -->
+        <div id="step-1-view" class="step-container flex-1 flex overflow-hidden w-full h-full">
+            
+            <!-- Left Sidebar -->
+            <aside class="w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto z-10 shadow-sm">
+                
+                <!-- Section 1: Certificate Background & Size -->
+                <div class="border-b border-slate-200">
+                    <button type="button" onclick="toggleSidebarSection('sec-paper-bg')" class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition cursor-pointer select-none bg-slate-50/50">
+                        <span class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-file-invoice text-blue-600"></i>
+                            A4 紙張規格與底圖
+                        </span>
+                        <i id="sec-paper-bg-arrow" class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200"></i>
+                    </button>
+
+                    <div id="sec-paper-bg-content" class="collapse-content p-4 space-y-3 bg-white">
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-600 mb-1.5">紙張規格與方向</label>
+                            <div class="grid grid-cols-3 gap-1.5 mb-2">
+                                <button onclick="setPaperSizePreset('landscape')" id="orient-landscape-btn" class="py-1.5 px-2 border rounded-lg text-xs font-medium flex items-center justify-center gap-1 border-blue-600 bg-blue-50 text-blue-700 shadow-sm">
+                                    <i class="fa-solid fa-file-lines rotate-90"></i> A4 橫向
+                                </button>
+                                <button onclick="setPaperSizePreset('portrait')" id="orient-portrait-btn" class="py-1.5 px-2 border rounded-lg text-xs font-medium flex items-center justify-center gap-1 border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
+                                    <i class="fa-solid fa-file-lines"></i> A4 直向
+                                </button>
+                                <button onclick="setPaperSizePreset('custom')" id="orient-custom-btn" class="py-1.5 px-2 border rounded-lg text-xs font-medium flex items-center justify-center gap-1 border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
+                                    <i class="fa-solid fa-pen-ruler"></i> 自訂尺寸
+                                </button>
+                            </div>
+
+                            <!-- Custom Paper Size Dimensions Box -->
+                            <div id="custom-size-controls" class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2 hidden">
+                                <div class="flex items-center justify-between text-[11px] text-slate-700 font-bold">
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-ruler-combined text-blue-500"></i>版面實體尺寸 (mm)</span>
+                                    <label class="flex items-center gap-1 font-normal text-[10px] text-slate-500 cursor-pointer">
+                                        <input type="checkbox" id="paper-lock-ratio" checked class="rounded text-blue-600">
+                                        <span>鎖定比例</span>
+                                    </label>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">紙張寬度 (mm)</label>
+                                        <input type="number" id="paper-width-mm" value="297" min="50" max="1000" oninput="updateCustomPaperSize('width', this.value)" class="w-full p-1 border border-slate-300 rounded text-xs bg-white font-mono">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">紙張高度 (mm)</label>
+                                        <input type="number" id="paper-height-mm" value="210" min="50" max="1000" oninput="updateCustomPaperSize('height', this.value)" class="w-full p-1 border border-slate-300 rounded text-xs bg-white font-mono">
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                                    <span>畫布基準解析度：</span>
+                                    <span id="canvas-pixel-size-label" class="font-mono text-slate-700 font-semibold">842 × 595 px</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-600 mb-1">空白獎狀底圖樣式</label>
+                            <select id="bg-type-select" onchange="handleBgTypeChange(this.value)" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="preset-jialin">佳林國中藍金典雅邊框 (預設)</option>
+                                <option value="preset-gold">佳林校園經典金邊框</option>
+                                <option value="custom">自訂上傳空白獎狀圖檔 (實體紙套印)</option>
+                                <option value="preset-classic">簡約傳統雙線框</option>
+                                <option value="none">純白底色 (隱藏底圖僅列印文字)</option>
+                            </select>
+                        </div>
+
+                        <div id="upload-bg-box" class="space-y-2 hidden">
+                            <label class="block text-[11px] font-medium text-slate-600">上傳空白獎狀圖檔 (JPG / PNG)</label>
+                            <div class="relative border border-dashed border-slate-300 rounded-lg p-2.5 text-center hover:border-blue-400 bg-slate-50 transition cursor-pointer">
+                                <input type="file" id="bg-upload-input" accept="image/*" onchange="uploadCertBackground(event)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                                <i class="fa-solid fa-cloud-arrow-up text-xl text-slate-400 mb-1 block"></i>
+                                <span class="text-xs text-slate-600 block font-medium">點擊上傳現成空白獎狀圖檔</span>
+                            </div>
+
+                            <!-- Uploaded Image Auto-Fit Tool -->
+                            <div id="bg-image-info-box" class="p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg space-y-1.5 hidden">
+                                <div class="flex items-center justify-between text-[11px] text-blue-900 font-semibold">
+                                    <span><i class="fa-solid fa-image text-blue-500 mr-1"></i>底圖尺寸資訊：</span>
+                                    <span id="bg-image-res-text" class="font-mono text-[10px] text-blue-700 font-bold"></span>
+                                </div>
+                                <button type="button" onclick="autoFitCanvasToBackgroundImage()" class="w-full py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+                                    <span>依此底圖比例自動調整版面大小</span>
+                                </button>
+                                <div class="flex items-center justify-between text-[10px] text-blue-800 pt-1">
+                                    <span>底圖填滿呈現模式：</span>
+                                    <select id="bg-fill-mode-select" onchange="updateBgFillMode(this.value)" class="p-1 border border-blue-200 rounded bg-white text-[10px]">
+                                        <option value="contain">等比例完整顯示 (Contain)</option>
+                                        <option value="stretch">滿版貼齊 (Stretch 100%)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between text-xs text-slate-600 pt-1">
+                            <span>顯示底圖預覽：</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="show-bg-toggle" checked onchange="toggleBgVisibility(this.checked)" class="sr-only peer">
+                                <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Layer Elements & Stamps -->
+                <div class="border-b border-slate-200">
+                    <button type="button" onclick="toggleSidebarSection('sec-layers')" class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition cursor-pointer select-none bg-slate-50/50">
+                        <span class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-blue-600"></i>
+                            圖層元件與圖案管理
+                        </span>
+                        <i id="sec-layers-arrow" class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200"></i>
+                    </button>
+
+                    <div id="sec-layers-content" class="collapse-content p-4 space-y-2.5 bg-white">
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="addNewField('dynamic')" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1.5 rounded-lg font-medium transition flex items-center justify-center gap-1.5 border border-blue-200 shadow-sm">
+                                <i class="fa-solid fa-database"></i> + 套印變數
+                            </button>
+                            <button onclick="addNewField('static')" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1.5 rounded-lg font-medium transition flex items-center justify-center gap-1.5 border border-emerald-200 shadow-sm">
+                                <i class="fa-solid fa-font"></i> + 固定文字
+                            </button>
+                        </div>
+
+                        <div class="relative border border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-50 rounded-lg p-2 text-center transition cursor-pointer">
+                            <input type="file" id="image-upload-input" accept="image/*" onchange="uploadCustomImage(event)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                            <div class="flex items-center justify-center gap-1.5 text-amber-800 text-xs font-semibold">
+                                <i class="fa-solid fa-stamp text-amber-600"></i>
+                                <span>新增自訂圖片 / 校章 / 簽名圖案</span>
+                            </div>
+                        </div>
+
+                        <div id="fields-list" class="space-y-1 max-h-44 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Selected Element Inspector -->
+                <div class="border-b border-slate-200">
+                    <button type="button" onclick="toggleSidebarSection('sec-inspector')" class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition cursor-pointer select-none bg-slate-50/50">
+                        <span class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                            <i class="fa-solid fa-sliders text-blue-600"></i>
+                            屬性: <span id="inspect-field-title" class="text-blue-600 font-bold truncate">未選取</span>
+                        </span>
+                        <div class="flex items-center space-x-2 shrink-0">
+                            <span id="delete-field-btn" onclick="event.stopPropagation(); deleteSelectedElement()" title="刪除選取元件" class="text-red-500 hover:text-red-700 text-xs hidden font-medium cursor-pointer px-1.5 py-0.5 rounded hover:bg-red-50">
+                                <i class="fa-solid fa-trash-can"></i> 刪除
+                            </span>
+                            <i id="sec-inspector-arrow" class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200"></i>
+                        </div>
+                    </button>
+
+                    <div id="sec-inspector-content" class="collapse-content p-4 space-y-3 bg-white">
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">
+                                <i class="fa-solid fa-tag text-blue-500 mr-1"></i>圖層/項目自訂名稱
+                            </label>
+                            <input type="text" id="prop-label" oninput="updateElementLabel(this.value)" class="w-full p-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 bg-white" placeholder="例如：獲獎學生姓名、校長印鑑章">
+                        </div>
+
+                        <!-- Alignment Control Box -->
+                        <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm space-y-2">
+                            <label class="block text-[11px] font-bold text-slate-700">
+                                <i class="fa-solid fa-arrows-to-dot text-blue-500 mr-1"></i>對齊模式 (Alignment)
+                            </label>
+                            
+                            <div id="text-align-section">
+                                <div class="flex items-center justify-between text-[11px] text-slate-600 mb-1">
+                                    <span>文字內部對齊：</span>
+                                    <span id="current-text-align-label" class="font-semibold text-blue-600">置中</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    <button type="button" onclick="setTextAlignment('left')" id="btn-align-left" class="align-btn py-1.5 px-2 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-1 transition">
+                                        <i class="fa-solid fa-align-left"></i> 靠左
+                                    </button>
+                                    <button type="button" onclick="setTextAlignment('center')" id="btn-align-center" class="align-btn active py-1.5 px-2 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-1 transition">
+                                        <i class="fa-solid fa-align-center"></i> 置中
+                                    </button>
+                                    <button type="button" onclick="setTextAlignment('right')" id="btn-align-right" class="align-btn py-1.5 px-2 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-1 transition">
+                                        <i class="fa-solid fa-align-right"></i> 靠右
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="pt-1.5 border-t border-slate-100">
+                                <div class="text-[11px] text-slate-600 mb-1">畫布位置一鍵對齊：</div>
+                                <div class="grid grid-cols-4 gap-1">
+                                    <button type="button" onclick="alignElementToCanvas('left')" title="畫布靠左對齊" class="py-1 px-1 border border-slate-200 rounded text-[11px] font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center gap-1 transition">
+                                        <i class="fa-solid fa-align-left"></i> 靠左
+                                    </button>
+                                    <button type="button" onclick="alignElementToCanvas('center')" title="畫布水平置中" class="py-1 px-1 border border-slate-200 rounded text-[11px] font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center gap-1 transition">
+                                        <i class="fa-solid fa-arrows-left-right"></i> 置中
+                                    </button>
+                                    <button type="button" onclick="alignElementToCanvas('right')" title="畫布靠右對齊" class="py-1 px-1 border border-slate-200 rounded text-[11px] font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center gap-1 transition">
+                                        <i class="fa-solid fa-align-right"></i> 靠右
+                                    </button>
+                                    <button type="button" onclick="alignElementToCanvas('middle')" title="畫布垂直置中" class="py-1 px-1 border border-slate-200 rounded text-[11px] font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center gap-1 transition">
+                                        <i class="fa-solid fa-arrows-up-down"></i> 垂直
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Inspector controls for TEXT element -->
+                        <div id="text-inspector-content" class="space-y-2.5 text-xs">
+                            <div id="prefix-suffix-box" class="grid grid-cols-2 gap-2 hidden bg-blue-50/60 p-2 rounded-lg border border-blue-100">
+                                <div>
+                                    <label class="block text-[10px] text-blue-800 font-semibold mb-0.5">前綴固定文字</label>
+                                    <input type="text" id="prop-prefix" oninput="updateElementProp('prefix', this.value)" class="w-full p-1 border border-blue-200 rounded bg-white text-xs" placeholder="例如: 恭喜">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-blue-800 font-semibold mb-0.5">後綴固定文字</label>
+                                    <input type="text" id="prop-suffix" oninput="updateElementProp('suffix', this.value)" class="w-full p-1 border border-blue-200 rounded bg-white text-xs" placeholder="例如: 同學">
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="text-slate-600 font-medium">文字內容 (支援 Enter 換行與多個連續空格)</label>
+                                    <span id="prop-text-hint" class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 hidden">留空將顯示套印預覽</span>
+                                </div>
+                                
+                                <!-- Variable Chips for Merging Multiple Fields -->
+                                <div id="variable-chips-box" class="mb-1.5 p-1.5 bg-blue-50/70 rounded-lg border border-blue-100 space-y-1">
+                                    <div class="flex items-center justify-between text-[10px] text-blue-800 font-bold">
+                                        <span class="flex items-center gap-1">
+                                            <i class="fa-solid fa-code-merge text-blue-600"></i>
+                                            點擊插入合併變數 (支援多欄位混合)：
+                                        </span>
+                                        <span class="text-[9px] text-slate-400 font-normal">如: {班級} {姓名}</span>
+                                    </div>
+                                    <div id="variable-chips-list" class="flex flex-wrap gap-1 pt-0.5"></div>
+                                </div>
+
+                                <textarea id="prop-text" rows="3" oninput="updateElementProp('text', this.value)" class="w-full p-2 border border-slate-300 rounded-lg bg-white text-xs font-sans focus:ring-2 focus:ring-blue-500" placeholder="可自由輸入固定字與 {班級}、{姓名}、{獎項} 等合併變數標籤"></textarea>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-600 mb-1">換行與分行模式</label>
+                                    <select id="prop-wrap" onchange="updateElementProp('wrapMode', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                        <option value="auto">依指定寬度自動換行</option>
+                                        <option value="manual">依 Enter 手動換行</option>
+                                        <option value="none">單行不換行</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 mb-1">區域寬度 Width (px)</label>
+                                    <input type="number" id="prop-width" min="30" max="842" oninput="updateElementProp('width', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <label class="text-slate-600 font-medium">字體家族</label>
+                                        <label class="text-[10px] text-blue-600 hover:text-blue-800 cursor-pointer flex items-center gap-1 font-semibold" title="上傳 TTF, OTF, WOFF 或 WOFF2 字型檔">
+                                            <i class="fa-solid fa-cloud-arrow-up"></i> 上傳字型
+                                            <input type="file" id="font-upload-input" accept=".ttf,.otf,.woff,.woff2" onchange="handleFontUpload(event)" class="hidden">
+                                        </label>
+                                    </div>
+                                    <select id="prop-font" onchange="updateElementProp('fontFamily', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                        <optgroup label="系統預設繁中字型">
+                                            <option value="font-kai">標楷體 (標準狀體)</option>
+                                            <option value="font-song">宋體 / 新細明體</option>
+                                            <option value="font-hei">微軟正黑體</option>
+                                            <option value="font-serif-tc">思源宋體 (典雅)</option>
+                                            <option value="font-sans-tc">思源黑體 (現代)</option>
+                                        </optgroup>
+                                        <optgroup id="custom-fonts-optgroup" label="自訂已上傳字型"></optgroup>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 mb-1">字型大小 (px)</label>
+                                    <input type="number" id="prop-size" min="10" max="120" oninput="updateElementProp('fontSize', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-600 mb-1">字體顏色</label>
+                                    <input type="color" id="prop-color" onchange="updateElementProp('color', this.value)" class="w-full h-8 border border-slate-300 rounded cursor-pointer bg-white p-0.5">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 mb-1">排版方向</label>
+                                    <select id="prop-writing" onchange="updateElementProp('writingMode', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                        <option value="horizontal-tb">橫書 (Horizontal)</option>
+                                        <option value="vertical-rl">直書 (Vertical)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-600 mb-1">字距 Letter-Spacing (px)</label>
+                                    <input type="number" id="prop-spacing" min="0" max="30" step="0.5" oninput="updateElementProp('letterSpacing', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 mb-1">行距 Line-Height</label>
+                                    <input type="number" id="prop-lineheight" min="0.8" max="3.0" step="0.1" oninput="updateElementProp('lineHeight', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-600 mb-1">X 座標 (px)</label>
+                                    <input type="number" id="prop-x" oninput="updateElementProp('x', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 mb-1">Y 座標 (px)</label>
+                                    <input type="number" id="prop-y" oninput="updateElementProp('y', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-4 pt-1">
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" id="prop-bold" onchange="updateElementProp('bold', this.checked)" class="rounded text-blue-600">
+                                    <span class="font-bold text-slate-700">加粗 (Bold)</span>
+                                </label>
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" id="prop-italic" onchange="updateElementProp('italic', this.checked)" class="rounded text-blue-600">
+                                    <span class="italic text-slate-700">斜體 (Italic)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Inspector controls for IMAGE element -->
+                        <div id="image-inspector-content" class="space-y-2.5 text-xs hidden">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-600 mb-1">圖片寬度 Width (px)</label>
+                                    <input type="number" id="img-prop-width" min="10" max="600" oninput="updateImageSize('width', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 mb-1">圖片高度 Height (px)</label>
+                                    <input type="number" id="img-prop-height" min="10" max="600" oninput="updateImageSize('height', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                            </div>
+
+                            <div class="bg-amber-50 p-2 rounded border border-amber-200 flex items-center justify-between">
+                                <label class="flex items-center gap-1.5 cursor-pointer text-amber-900 font-medium text-xs">
+                                    <input type="checkbox" id="img-prop-lockratio" onchange="updateElementProp('lockRatio', this.checked)" checked class="rounded text-blue-600">
+                                    <span>固定等比例縮放 (鎖定長寬比)</span>
+                                </label>
+                                <i class="fa-solid fa-lock text-amber-500"></i>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-600 mb-1">透明度 Opacity (%)</label>
+                                    <input type="range" id="img-prop-opacity" min="10" max="100" oninput="updateElementProp('opacity', this.value / 100)" class="w-full">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 mb-1">旋轉角度 (Deg)</label>
+                                    <input type="number" id="img-prop-rotate" min="-180" max="180" oninput="updateElementProp('rotation', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-600 mb-1">X 座標 (px)</label>
+                                    <input type="number" id="img-prop-x" oninput="updateElementProp('x', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 mb-1">Y 座標 (px)</label>
+                                    <input type="number" id="img-prop-y" oninput="updateElementProp('y', this.value)" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center Visual Interactive Canvas Workspace -->
+            <section class="flex-1 bg-slate-200/90 overflow-auto p-4 lg:p-6 flex flex-col items-center justify-start">
+                
+                <div class="mb-4 bg-white/95 backdrop-blur px-4 py-2 rounded-xl shadow-md border border-slate-300/80 flex flex-wrap items-center justify-between gap-3 text-xs font-medium z-10 w-full max-w-4xl shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-slate-600 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-ruler-combined text-blue-600"></i>
+                            <span id="canvas-paper-desc-text">A4 橫向 (297×210 mm)</span>
+                        </span>
+                        <span class="text-slate-300">|</span>
+                        
+                        <div class="flex items-center space-x-1">
+                            <button onclick="adjustZoom(-0.1)" title="縮小" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                            <span id="zoom-level-text" class="px-1.5 font-mono text-slate-700">100%</span>
+                            <button onclick="adjustZoom(0.1)" title="放大" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                            <button onclick="resetZoom()" class="text-[11px] text-blue-600 hover:underline ml-1">重設 100%</button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <span class="text-slate-400">對齊：</span>
+                        <button onclick="alignElementToCanvas('left')" title="靠左對齊畫布邊界" class="px-2 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 rounded text-slate-700 flex items-center gap-1 border border-slate-200 transition">
+                            <i class="fa-solid fa-align-left"></i> 靠左
+                        </button>
+                        <button onclick="alignElementToCanvas('center')" title="畫布水平置中" class="px-2 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 rounded text-slate-700 flex items-center gap-1 border border-slate-200 transition">
+                            <i class="fa-solid fa-align-center"></i> 置中
+                        </button>
+                        <button onclick="alignElementToCanvas('right')" title="靠右對齊畫布邊界" class="px-2 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 rounded text-slate-700 flex items-center gap-1 border border-slate-200 transition">
+                            <i class="fa-solid fa-align-right"></i> 靠右
+                        </button>
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <label class="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer select-none">
+                            <input type="checkbox" id="margin-guide-toggle" checked onchange="toggleMarginGuide(this.checked)" class="rounded text-blue-600">
+                            <span>A4 安全邊界</span>
+                        </label>
+                        <span class="text-slate-300">|</span>
+                        <button onclick="resetElementPositions()" class="text-slate-600 hover:text-amber-600 flex items-center gap-1 transition" title="清空所有版面元件">
+                            <i class="fa-solid fa-trash-can"></i> 清空畫布元件
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Canvas Centering Wrapper -->
+                <div class="w-full flex-1 flex items-start justify-center overflow-visible pb-12">
+                    <div id="canvas-zoom-wrapper" class="transition-transform duration-150 origin-top flex items-center justify-center">
+                        <div id="cert-canvas" class="cert-canvas-container a4-landscape rounded-sm border border-slate-400">
+                            <div id="canvas-margin-guide" class="a4-guideline"></div>
+                            <div id="canvas-bg-layer" class="absolute inset-0 pointer-events-none bg-contain bg-center bg-no-repeat"></div>
+                            <div id="canvas-fields-layer" class="absolute inset-0"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </div>
+
+        <!-- STEP 2: 匯入獲獎名冊 (Excel Roster Import) -->
+        <div id="step-2-view" class="step-container flex-1 p-6 overflow-y-auto hidden">
+            <div class="max-w-5xl mx-auto space-y-6">
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-file-excel text-emerald-600"></i>
+                        匯入佳林國中獲獎名冊 Excel / CSV 檔
+                    </h2>
+                    <p class="text-xs text-slate-500">
+                        支援格式：<code class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">.xlsx</code>, <code class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">.xls</code>, <code class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">.csv</code>。試算表第一列為標題（如：班級、姓名、獎項、事由等）。
+                    </p>
+
+                    <div class="mt-4 border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 rounded-2xl p-8 text-center transition cursor-pointer relative">
+                        <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" onchange="handleExcelUpload(event)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+                            <i class="fa-solid fa-file-arrow-up"></i>
+                        </div>
+                        <p class="text-sm font-semibold text-slate-700">點擊選擇 Excel 檔案，或拖拽名冊檔案至此處</p>
+                        <p class="text-xs text-slate-400 mt-1">亦可點擊右上角「載入示範數據」試用測試名冊</p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <h3 class="text-base font-bold text-slate-800">已匯入的名冊資料表</h3>
+                            <span id="roster-count-badge" class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">0 筆資料</span>
+                        </div>
+                        <button onclick="clearRosterData()" class="text-xs text-red-600 hover:text-red-800 font-medium px-3 py-1.5 border border-red-200 rounded-lg bg-red-50 transition">
+                            <i class="fa-solid fa-trash-can mr-1"></i>清空名冊
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto max-h-96 border border-slate-200 rounded-xl">
+                        <table id="roster-table" class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-100 text-slate-700 sticky top-0 font-semibold border-b border-slate-200">
+                                <tr id="table-header-row">
+                                    <th class="p-3 border-r border-slate-200 w-12 text-center">#</th>
+                                    <th class="p-3 text-slate-400 font-normal italic">尚未匯入資料...</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body-rows" class="divide-y divide-slate-100 text-slate-700">
+                                <tr>
+                                    <td colspan="5" class="p-8 text-center text-slate-400">
+                                        尚無名冊資料。請上傳 Excel 檔案或點擊「載入示範數據」。
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: 欄位對應設定 (Field Mapping) -->
+        <div id="step-3-view" class="step-container flex-1 p-6 overflow-y-auto hidden">
+            <div class="max-w-3xl mx-auto space-y-6">
+                <!-- Checklist display fields configuration (1~3 columns) -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-id-badge text-blue-600"></i>
+                        批次列印清單辨識欄位 (選擇 1～3 欄)
+                    </h2>
+                    <p class="text-xs text-slate-500 mb-4">
+                        設定在步驟 4 勾選名冊時所顯示的學生識別資訊（例如：欄位一選「班級」、欄位二選「姓名」、欄位三選「獎項」）。
+                    </p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        <div>
+                            <label class="block text-xs font-bold text-blue-900 mb-1">顯示欄位 1 (主標題)</label>
+                            <select id="disp-col-1" onchange="updateDisplayColumn(0, this.value)" class="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500">
+                                <option value="">(未設定)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-blue-900 mb-1">顯示欄位 2 (副標題)</label>
+                            <select id="disp-col-2" onchange="updateDisplayColumn(1, this.value)" class="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500">
+                                <option value="">(未設定)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-blue-900 mb-1">顯示欄位 3 (輔助備註)</label>
+                            <select id="disp-col-3" onchange="updateDisplayColumn(2, this.value)" class="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500">
+                                <option value="">(未設定 / 無)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-link text-blue-600"></i>
+                        獎狀動態變數欄位對應
+                    </h2>
+                    <p class="text-xs text-slate-500 mb-6">
+                        選擇各套印變數需帶入 Excel 中的哪一欄資料。若選取「不對應」，則會顯示畫布預設固定文字。
+                    </p>
+
+                    <div id="mapping-list-container" class="space-y-4"></div>
+
+                    <div class="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+                        <button onclick="switchStep(4)" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow transition flex items-center gap-2">
+                            <span>前往預覽套印結果</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 4: 預覽與批次列印 (Batch Preview & Print View) -->
+        <div id="step-4-view" class="step-container flex-1 flex overflow-hidden hidden">
+            <!-- Sidebar Selection -->
+            <aside class="w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col p-4 space-y-3 overflow-y-auto shrink-0 shadow-sm">
+                <div class="border-b border-slate-100 pb-2">
+                    <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-blue-600"></i>
+                        批次列印對象選擇
+                    </h2>
+                    <p class="text-xs text-slate-500">已選取 <span id="selected-count" class="font-bold text-blue-600">0</span> / <span id="total-count">0</span> 人</p>
+                </div>
+
+                <!-- Quick display column toggles directly in Step 4 -->
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-700 text-[11px]"><i class="fa-solid fa-sliders text-blue-500 mr-1"></i>清單顯示欄位：</span>
+                        <button onclick="switchStep(3)" class="text-[10px] text-blue-600 hover:underline">變更欄位</button>
+                    </div>
+                    <div id="active-display-columns-badge" class="flex flex-wrap gap-1"></div>
+                </div>
+
+                <!-- Print Background Toggle in Step 4 -->
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                    <div>
+                        <span class="font-bold text-slate-700 text-[11px] flex items-center gap-1.5">
+                            <i class="fa-solid fa-image text-blue-500"></i>
+                            列印底圖背景
+                        </span>
+                        <span class="text-[10px] text-slate-400 block">套印於實體獎狀紙請關閉</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="print-bg-toggle" checked onchange="togglePrintBackground(this.checked)" class="sr-only peer">
+                        <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+
+                <div class="flex items-center justify-between text-xs pt-1">
+                    <button onclick="selectAllRoster(true)" class="text-blue-600 hover:underline font-medium">全選所有對象</button>
+                    <button onclick="selectAllRoster(false)" class="text-slate-500 hover:underline">取消全選</button>
+                </div>
+
+                <input type="text" id="roster-search" oninput="filterRosterList(this.value)" placeholder="搜尋姓名、班級或關鍵字..." class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+
+                <div id="preview-checklist" class="flex-1 space-y-1.5 overflow-y-auto border border-slate-200 rounded-xl p-2 bg-slate-50 max-h-72"></div>
+
+                <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-3 space-y-2 text-xs text-slate-700">
+                    <p class="font-bold text-blue-900 flex items-center gap-1">
+                        <i class="fa-solid fa-print text-blue-600"></i> A4 精準套印列印提示：
+                    </p>
+                    <ul class="list-disc list-inside space-y-1 text-slate-600 text-[11px]">
+                        <li>請於瀏覽器列印對話框將「邊界」設定為<b>「無」</b>。</li>
+                        <li>若套印於現成實體紙張，請至步驟 1 選擇「純白底色」。</li>
+                        <li>方向請確認為 <b><span id="print-orient-text">橫向</span> (A4)</b>。</li>
+                    </ul>
+                    <button onclick="triggerPrint()" class="w-full mt-2 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-print"></i> 列印勾選的獎狀
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main Preview Display (Same Zoom & Coordinates as Step 1) -->
+            <section class="flex-1 bg-slate-200/90 p-4 lg:p-6 overflow-auto flex flex-col items-center justify-start">
+                <div class="mb-3 bg-white/95 backdrop-blur px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <i class="fa-solid fa-eye text-blue-500"></i>
+                    <span>即時 A4 套印預覽 (第 <span id="preview-current-idx">1</span> 張，共 <span id="preview-total-count">0</span> 張)</span>
+                </div>
+
+                <!-- Preview Canvas Zoom Wrapper to guarantee 1:1 match -->
+                <div class="w-full flex-1 flex items-start justify-center overflow-visible pb-12">
+                    <div id="preview-zoom-wrapper" class="transition-transform duration-150 origin-top flex items-center justify-center">
+                        <div id="single-preview-canvas" class="cert-canvas-container a4-landscape rounded-sm border border-slate-300 shadow-2xl relative"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- PRINT CONTAINER (Hidden on screen, active in @media print) -->
+    <div id="print-mount-point" class="print-only"></div>
+
+    <!-- Export Configuration Modal -->
+    <div id="export-modal" class="no-print fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-2 text-slate-800">
+                    <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <i class="fa-solid fa-file-export"></i>
+                    </div>
+                    <h3 class="text-base font-bold">匯出獎狀版面排版設定</h3>
+                </div>
+                <button onclick="closeExportModal()" class="text-slate-400 hover:text-slate-600 text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs text-slate-600">
+                <p>系統將把當前的 A4 規格、文字元件位置、字體樣式、對齊設定與自訂印章匯出為 JSON 設定檔。</p>
+                
+                <div class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                    <label class="flex items-start gap-2.5 cursor-pointer select-none">
+                        <input type="checkbox" id="export-include-roster" class="rounded text-blue-600 mt-0.5" checked>
+                        <div>
+                            <span class="font-bold text-blue-950 block">合併匯出目前名冊資料</span>
+                            <span class="text-[11px] text-blue-700/80 block mt-0.5">
+                                將目前匯入的 <span id="export-modal-roster-count" class="font-bold text-blue-900">0</span> 筆名冊與欄位對應資料一併封裝，在其他電腦匯入即可直接預覽並套印。
+                            </span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button onclick="closeExportModal()" class="px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-600 text-xs font-semibold transition">
+                    取消
+                </button>
+                <button onclick="confirmExportTemplateConfig()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-download"></i>
+                    <span>確認下載設定檔</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="no-print fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all transform translate-y-20 opacity-0 z-50">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toast-msg" class="text-xs font-medium">系統訊息</span>
+    </div>
+
+    <script>
+        /* ==================== SYSTEM STATE ==================== */
+        const state = {
+            currentStep: 1,
+            orientation: 'landscape', // 'landscape' | 'portrait' | 'custom'
+            paperWidthMm: 297,
+            paperHeightMm: 210,
+            canvasWidthPx: 842,
+            canvasHeightPx: 595,
+            bgFillMode: 'contain', // 'contain' | 'stretch'
+            uploadedImageInfo: null, // { width, height, aspect }
+            bgType: 'preset-jialin', 
+            customBgUrl: null,
+            showBgInEditor: true,
+            printBackground: true, // Whether to render background in print & Step 4 preview
+            showMarginGuide: true,
+            zoomLevel: 1.0,
+            customFonts: [],
+
+            // Certificate Elements (預設空白，無預設元件)
+            elements: [],
+
+            selectedElementId: null,
+            
+            // Excel Roster
+            rosterHeaders: ['班級', '姓名', '獎項', '獲獎事由', '日期', '證號'],
+            rosterData: [],
+            selectedRosterIndices: [],
+            previewIndex: 0,
+
+            // 1~3 Display Columns in Checklist
+            displayColumns: ['班級', '姓名', '獎項']
+        };
+
+        // Preset Background SVGs
+        const presetBgs = {
+            'preset-jialin': `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="842" height="595" viewBox="0 0 842 595"><rect width="842" height="595" fill="%23ffffff"/><rect x="22" y="22" width="798" height="551" fill="none" stroke="%231e3a8a" stroke-width="6"/><rect x="30" y="30" width="782" height="535" fill="none" stroke="%23d97706" stroke-width="2"/><rect x="36" y="36" width="770" height="523" fill="none" stroke="%2393c5fd" stroke-width="1" stroke-dasharray="8,4"/><path d="M22,22 L60,22 L22,60 Z M820,22 L782,22 L820,60 Z M22,573 L60,573 L22,535 Z M820,573 L782,573 L820,535 Z" fill="%231e3a8a"/></svg>`,
+            'preset-gold': `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="842" height="595" viewBox="0 0 842 595"><rect width="842" height="595" fill="%23fffdfa"/><rect x="25" y="25" width="792" height="545" fill="none" stroke="%23d97706" stroke-width="4"/><rect x="33" y="33" width="776" height="529" fill="none" stroke="%23f59e0b" stroke-width="1.5" stroke-dasharray="6,4"/><path d="M20,20 L50,20 L20,50 Z M822,20 L792,20 L822,50 Z M20,575 L50,575 L20,545 Z M822,575 L792,575 L822,545 Z" fill="%23d97706"/></svg>`,
+            'preset-classic': `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="842" height="595" viewBox="0 0 842 595"><rect width="842" height="595" fill="%23ffffff"/><rect x="30" y="30" width="782" height="535" fill="none" stroke="%231e293b" stroke-width="2"/><rect x="36" y="36" width="770" height="523" fill="none" stroke="%2364748b" stroke-width="1"/></svg>`,
+            'none': ''
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            applyPaperSizeToCanvases();
+            renderElementsOnCanvas();
+            renderElementsList();
+            inspectElement(state.selectedElementId);
+            updateCanvasBackground();
+            updateFontSelectOptions();
+            updateDisplayColumnsSelectors();
+        });
+
+        /* ==================== ACCORDION COLLAPSE TOGGLE ==================== */
+        function toggleSidebarSection(secId) {
+            const content = document.getElementById(`${secId}-content`);
+            const arrow = document.getElementById(`${secId}-arrow`);
+            if (!content) return;
+
+            const isCollapsed = content.classList.contains('collapsed');
+            if (isCollapsed) {
+                content.classList.remove('collapsed');
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            } else {
+                content.classList.add('collapsed');
+                if (arrow) arrow.style.transform = 'rotate(-90deg)';
+            }
+        }
+
+        function ensureInspectorExpanded() {
+            const content = document.getElementById('sec-inspector-content');
+            const arrow = document.getElementById('sec-inspector-arrow');
+            if (content && content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        /* ==================== STEP NAVIGATION ==================== */
+        function switchStep(stepNum) {
+            state.currentStep = stepNum;
+            
+            document.querySelectorAll('.step-container').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`step-${stepNum}-view`).classList.remove('hidden');
+
+            for (let i = 1; i <= 4; i++) {
+                const btn = document.getElementById(`step-btn-${i}`);
+                if (i === stepNum) {
+                    btn.className = 'step-btn px-3.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 bg-blue-600 text-white shadow';
+                } else {
+                    btn.className = 'step-btn px-3.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-700';
+                }
+            }
+
+            if (stepNum === 3) {
+                updateDisplayColumnsSelectors();
+                renderMappingInterface();
+            } else if (stepNum === 4) {
+                renderDisplayColumnsBadge();
+                renderBatchPreviewList();
+                renderSinglePreviewCanvas();
+            }
+        }
+
+        /* ==================== PAPER ORIENTATION & CUSTOM CANVAS SIZING ==================== */
+        function setPaperSizePreset(preset) {
+            state.orientation = preset;
+            const landscapeBtn = document.getElementById('orient-landscape-btn');
+            const portraitBtn = document.getElementById('orient-portrait-btn');
+            const customBtn = document.getElementById('orient-custom-btn');
+            const customControls = document.getElementById('custom-size-controls');
+            const printOrientText = document.getElementById('print-orient-text');
+
+            [landscapeBtn, portraitBtn, customBtn].forEach(b => {
+                b.className = 'py-1.5 px-2 border rounded-lg text-xs font-medium flex items-center justify-center gap-1 border-slate-200 bg-white text-slate-600 hover:bg-slate-50';
+            });
+
+            if (preset === 'landscape') {
+                landscapeBtn.className = 'py-1.5 px-2 border rounded-lg text-xs font-medium flex items-center justify-center gap-1 border-blue-600 bg-blue-50 text-blue-700 shadow-sm';
+                customControls.classList.add('hidden');
+                state.paperWidthMm = 297;
+                state.paperHeightMm = 210;
+                state.canvasWidthPx = 842;
+                state.canvasHeightPx = 595;
+                if (printOrientText) printOrientText.innerText = '橫向 (297×210 mm)';
+            } else if (preset === 'portrait') {
+                portraitBtn.className = 'py-1.5 px-2 border rounded-lg text-xs font-medium flex items-center justify-center gap-1 border-blue-600 bg-blue-50 text-blue-700 shadow-sm';
+                customControls.classList.add('hidden');
+                state.paperWidthMm = 210;
+                state.paperHeightMm = 297;
+                state.canvasWidthPx = 595;
+                state.canvasHeightPx = 842;
+                if (printOrientText) printOrientText.innerText = '直向 (210×297 mm)';
+            } else {
+                customBtn.className = 'py-1.5 px-2 border rounded-lg text-xs font-medium flex items-center justify-center gap-1 border-blue-600 bg-blue-50 text-blue-700 shadow-sm';
+                customControls.classList.remove('hidden');
+                document.getElementById('paper-width-mm').value = state.paperWidthMm;
+                document.getElementById('paper-height-mm').value = state.paperHeightMm;
+                if (printOrientText) printOrientText.innerText = `自訂 (${state.paperWidthMm}×${state.paperHeightMm} mm)`;
+            }
+
+            applyPaperSizeToCanvases();
+            showToast(`已切換版面規格：${preset === 'landscape' ? 'A4 橫向' : preset === 'portrait' ? 'A4 直向' : '自訂尺寸'}`);
+        }
+
+        function updateCustomPaperSize(dim, value) {
+            const val = parseFloat(value) || 50;
+            const lockRatio = document.getElementById('paper-lock-ratio')?.checked;
+            const currentRatio = state.paperWidthMm / state.paperHeightMm;
+
+            if (dim === 'width') {
+                state.paperWidthMm = Math.round(val);
+                if (lockRatio) {
+                    state.paperHeightMm = Math.round(state.paperWidthMm / currentRatio);
+                    document.getElementById('paper-height-mm').value = state.paperHeightMm;
+                }
+            } else {
+                state.paperHeightMm = Math.round(val);
+                if (lockRatio) {
+                    state.paperWidthMm = Math.round(state.paperHeightMm * currentRatio);
+                    document.getElementById('paper-width-mm').value = state.paperWidthMm;
+                }
+            }
+
+            // Standard scale base: 1mm ≈ 2.8346px (72 dpi print standard)
+            state.canvasWidthPx = Math.round(state.paperWidthMm * 2.8346);
+            state.canvasHeightPx = Math.round(state.paperHeightMm * 2.8346);
+
+            applyPaperSizeToCanvases();
+        }
+
+        function applyPaperSizeToCanvases() {
+            const certCanvas = document.getElementById('cert-canvas');
+            const singlePreviewCanvas = document.getElementById('single-preview-canvas');
+            const pixelLabel = document.getElementById('canvas-pixel-size-label');
+            const descLabel = document.getElementById('canvas-paper-desc-text');
+            const printOrientText = document.getElementById('print-orient-text');
+
+            const widthStyle = `${state.canvasWidthPx}px`;
+            const heightStyle = `${state.canvasHeightPx}px`;
+
+            [certCanvas, singlePreviewCanvas].forEach(cvs => {
+                if (!cvs) return;
+                cvs.classList.remove('a4-landscape', 'a4-portrait');
+                cvs.style.width = widthStyle;
+                cvs.style.height = heightStyle;
+                cvs.style.minWidth = widthStyle;
+                cvs.style.minHeight = heightStyle;
+                cvs.style.maxWidth = widthStyle;
+                cvs.style.maxHeight = heightStyle;
+            });
+
+            if (pixelLabel) pixelLabel.innerText = `${state.canvasWidthPx} × ${state.canvasHeightPx} px`;
+            const orientDesc = state.orientation === 'landscape' ? 'A4 橫向' : state.orientation === 'portrait' ? 'A4 直向' : '自訂規格';
+            const sizeDesc = `${orientDesc} (${state.paperWidthMm}×${state.paperHeightMm} mm)`;
+            if (descLabel) descLabel.innerText = sizeDesc;
+            if (printOrientText) printOrientText.innerText = sizeDesc;
+
+            updateCanvasBackground();
+            if (state.currentStep === 4) renderSinglePreviewCanvas();
+        }
+
+        function uploadCertBackground(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                state.customBgUrl = event.target.result;
+                state.bgType = 'custom';
+                
+                // Inspect image natural resolution
+                const img = new Image();
+                img.onload = () => {
+                    state.uploadedImageInfo = {
+                        width: img.naturalWidth,
+                        height: img.naturalHeight,
+                        aspect: img.naturalWidth / img.naturalHeight
+                    };
+
+                    const infoBox = document.getElementById('bg-image-info-box');
+                    const resText = document.getElementById('bg-image-res-text');
+                    if (infoBox) infoBox.classList.remove('hidden');
+                    if (resText) resText.innerText = `${img.naturalWidth} × ${img.naturalHeight} px (${state.uploadedImageInfo.aspect > 1 ? '橫向' : '直向'})`;
+
+                    updateCanvasBackground();
+                    showToast('已成功上傳空白獎狀圖檔！可點擊自動適配版面寬高。');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /* Auto-fit paper size & canvas dimensions directly to uploaded image aspect ratio */
+        function autoFitCanvasToBackgroundImage() {
+            if (!state.uploadedImageInfo) {
+                showToast('請先上傳底圖圖檔！', 'warning');
+                return;
+            }
+
+            const { width, height, aspect } = state.uploadedImageInfo;
+            
+            // Switch to custom mode
+            state.orientation = 'custom';
+            setPaperSizePreset('custom');
+
+            if (aspect >= 1) {
+                // Landscape default base (A4 width 297mm)
+                state.paperWidthMm = 297;
+                state.paperHeightMm = Math.round(297 / aspect);
+            } else {
+                // Portrait default base (A4 height 297mm)
+                state.paperHeightMm = 297;
+                state.paperWidthMm = Math.round(297 * aspect);
+            }
+
+            state.canvasWidthPx = Math.round(state.paperWidthMm * 2.8346);
+            state.canvasHeightPx = Math.round(state.paperHeightMm * 2.8346);
+
+            document.getElementById('paper-width-mm').value = state.paperWidthMm;
+            document.getElementById('paper-height-mm').value = state.paperHeightMm;
+
+            applyPaperSizeToCanvases();
+            showToast(`已自動依底圖比例調整版面為 ${state.paperWidthMm} × ${state.paperHeightMm} mm！`);
+        }
+
+        function updateBgFillMode(mode) {
+            state.bgFillMode = mode;
+            updateCanvasBackground();
+            if (state.currentStep === 4) renderSinglePreviewCanvas();
+            showToast(`底圖呈現方式切換為「${mode === 'contain' ? '保持比例置中' : '滿版貼齊'}」`);
+        }
+
+        function adjustZoom(delta) {
+            state.zoomLevel = Math.min(1.5, Math.max(0.6, Math.round((state.zoomLevel + delta) * 10) / 10));
+            applyZoom();
+        }
+
+        function resetZoom() {
+            state.zoomLevel = 1.0;
+            applyZoom();
+        }
+
+        function applyZoom() {
+            const wrapper = document.getElementById('canvas-zoom-wrapper');
+            const previewWrapper = document.getElementById('preview-zoom-wrapper');
+            const label = document.getElementById('zoom-level-text');
+            if (wrapper) wrapper.style.transform = `scale(${state.zoomLevel})`;
+            if (previewWrapper) previewWrapper.style.transform = `scale(${state.zoomLevel})`;
+            if (label) label.innerText = `${Math.round(state.zoomLevel * 100)}%`;
+        }
+
+        function toggleMarginGuide(checked) {
+            state.showMarginGuide = checked;
+            const guide = document.getElementById('canvas-margin-guide');
+            if (guide) {
+                guide.style.display = checked ? 'block' : 'none';
+            }
+        }
+
+        function handleBgTypeChange(val) {
+            state.bgType = val;
+            const uploadBox = document.getElementById('upload-bg-box');
+            if (val === 'custom') {
+                uploadBox.classList.remove('hidden');
+            } else {
+                uploadBox.classList.add('hidden');
+            }
+            updateCanvasBackground();
+        }
+
+        function toggleBgVisibility(checked) {
+            state.showBgInEditor = checked;
+            updateCanvasBackground();
+        }
+
+        function togglePrintBackground(checked) {
+            state.printBackground = checked;
+            const toggle = document.getElementById('print-bg-toggle');
+            if (toggle) toggle.checked = checked;
+            renderSinglePreviewCanvas();
+            showToast(checked ? '已開啟：預覽與列印時將輸出底圖' : '已關閉：預覽與列印時隱藏底圖（適合實體獎狀紙套印）');
+        }
+
+        function updateCanvasBackground() {
+            const bgLayer = document.getElementById('canvas-bg-layer');
+            if (!bgLayer) return;
+
+            bgLayer.style.backgroundSize = state.bgFillMode === 'stretch' ? '100% 100%' : 'contain';
+
+            if (!state.showBgInEditor) {
+                bgLayer.style.backgroundImage = 'none';
+                return;
+            }
+
+            if (state.bgType === 'custom' && state.customBgUrl) {
+                bgLayer.style.backgroundImage = `url("${state.customBgUrl}")`;
+            } else if (presetBgs[state.bgType]) {
+                bgLayer.style.backgroundImage = `url('${presetBgs[state.bgType]}')`;
+            } else {
+                bgLayer.style.backgroundImage = 'none';
+            }
+        }
+
+        /* ==================== UNIFIED ELEMENT RENDERING HELPER ==================== */
+        /* Builds identical inline CSS and classes so Step 1, Step 4 & Print match 100% */
+        function getElementSharedStyles(el) {
+            let wrapClass = 'text-wrap-none';
+            if (el.wrapMode === 'auto') wrapClass = 'text-wrap-auto';
+            else if (el.wrapMode === 'manual') wrapClass = 'text-wrap-manual';
+
+            const writingClass = el.writingMode === 'vertical-rl' ? 'writing-vertical' : '';
+            const fontClass = el.fontFamily || 'font-kai';
+
+            let styleStr = `position: absolute; left: ${el.x}px; top: ${el.y}px;`;
+            if (el.type === 'image') {
+                styleStr += ` width: ${el.width}px; height: ${el.height}px; opacity: ${el.opacity !== undefined ? el.opacity : 1}; transform: rotate(${el.rotation || 0}deg);`;
+            } else {
+                if (el.width) styleStr += ` width: ${el.width}px;`;
+                styleStr += ` font-size: ${el.fontSize}px; color: ${el.color}; text-align: ${el.textAlign || 'center'};`;
+                styleStr += ` font-weight: ${el.bold ? 'bold' : 'normal'}; font-style: ${el.italic ? 'italic' : 'normal'};`;
+                styleStr += ` letter-spacing: ${el.letterSpacing || 0}px; line-height: ${el.lineHeight || 1.2};`;
+            }
+
+            return { wrapClass, writingClass, fontClass, styleStr };
+        }
+
+        /* Unified text resolution supporting combined variables like {班級} {姓名} */
+        function resolveElementText(el, record) {
+            const prefix = el.prefix || '';
+            const suffix = el.suffix || '';
+            const rec = record || state.rosterData[state.previewIndex] || state.rosterData[0] || {};
+            let rawText = el.text;
+
+            // Check if rawText contains variable placeholders like {欄位} or {{欄位}}
+            const hasPlaceholders = typeof rawText === 'string' && /\{+([^}]+)\}+/.test(rawText);
+
+            if (hasPlaceholders) {
+                const replaced = rawText.replace(/\{+([^}]+)\}+/g, (match, key) => {
+                    const trimmedKey = key.trim();
+                    if (rec[trimmedKey] !== undefined && String(rec[trimmedKey]).trim() !== '') {
+                        return rec[trimmedKey];
+                    }
+                    const fallback = state.rosterData[0];
+                    if (fallback && fallback[trimmedKey] !== undefined && String(fallback[trimmedKey]).trim() !== '') {
+                        return fallback[trimmedKey];
+                    }
+                    return `[${trimmedKey}]`;
+                });
+                return `${prefix}${replaced}${suffix}`;
+            }
+
+            // If rawText is explicitly set and has no placeholder
+            if (rawText !== undefined && rawText !== null && rawText.trim() !== '') {
+                // If it's single dynamic field with mappingKey and we're rendering specific record
+                if (record && el.type === 'dynamic' && el.mappingKey && record[el.mappingKey] !== undefined && String(record[el.mappingKey]).trim() !== '') {
+                    return `${prefix}${record[el.mappingKey]}${suffix}`;
+                }
+                return `${prefix}${rawText}${suffix}`;
+            }
+
+            // If text is blank or only spaces:
+            if (el.type === 'dynamic') {
+                if (rec[el.mappingKey] !== undefined && String(rec[el.mappingKey]).trim() !== '') {
+                    return `${prefix}${rec[el.mappingKey]}${suffix}`;
+                }
+                const placeholder = el.mappingKey ? `[${el.mappingKey}]` : `[${el.label}]`;
+                return `${prefix}${placeholder}${suffix}`;
+            }
+
+            // Static text fallback
+            return `${prefix}${el.label || '請輸入文字'}${suffix}`;
+        }
+
+        /* ==================== CANVAS ELEMENTS RENDERING (STEP 1) ==================== */
+        function renderElementsOnCanvas() {
+            const container = document.getElementById('canvas-fields-layer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            state.elements.forEach(el => {
+                const domEl = document.createElement('div');
+                domEl.id = `canvas-el-${el.id}`;
+                const isSelected = el.id === state.selectedElementId;
+                const { wrapClass, writingClass, fontClass, styleStr } = getElementSharedStyles(el);
+
+                if (el.type === 'image') {
+                    domEl.className = `canvas-element ${isSelected ? 'selected' : ''}`;
+                    domEl.style.cssText = styleStr;
+
+                    const img = document.createElement('img');
+                    img.src = el.src;
+                    img.className = 'w-full h-full object-contain pointer-events-none';
+                    domEl.appendChild(img);
+
+                    if (isSelected) {
+                        const handleSE = document.createElement('div');
+                        handleSE.className = 'resize-handle resize-handle-se';
+                        handleSE.onmousedown = (e) => startResizeElement(e, el.id, 'se');
+                        domEl.appendChild(handleSE);
+                    }
+                } else {
+                    domEl.className = `canvas-element ${fontClass} ${wrapClass} ${writingClass} ${isSelected ? 'selected' : ''}`;
+                    domEl.style.cssText = styleStr;
+
+                    // Unified text resolver (handles both single & merged variable tags)
+                    domEl.textContent = resolveElementText(el);
+
+                    if (isSelected) {
+                        const handleE = document.createElement('div');
+                        handleE.className = 'resize-handle resize-handle-e';
+                        handleE.onmousedown = (e) => startResizeElement(e, el.id, 'e');
+                        domEl.appendChild(handleE);
+                    }
+                }
+
+                domEl.addEventListener('mousedown', (e) => startDragElement(e, el.id));
+                container.appendChild(domEl);
+            });
+        }
+
+        function selectElement(id) {
+            state.selectedElementId = id;
+            ensureInspectorExpanded();
+            renderElementsOnCanvas();
+            renderElementsList();
+            inspectElement(id);
+        }
+
+        function renderElementsList() {
+            const listContainer = document.getElementById('fields-list');
+            if (!listContainer) return;
+            listContainer.innerHTML = '';
+
+            if (state.elements.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="py-4 px-2 text-center text-[11px] text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                        目前畫布無任何元件<br>請點擊上方按鈕新增變數或文字
+                    </div>
+                `;
+                return;
+            }
+
+            state.elements.forEach(el => {
+                const isSelected = el.id === state.selectedElementId;
+                const item = document.createElement('div');
+                item.className = `p-1.5 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition ${isSelected ? 'border-blue-600 bg-blue-50 text-blue-900 font-semibold shadow-sm' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`;
+                item.onclick = () => selectElement(el.id);
+
+                let icon = 'fa-font text-emerald-500';
+                if (el.type === 'dynamic') icon = 'fa-database text-blue-500';
+                if (el.type === 'image') icon = 'fa-image text-amber-500';
+
+                let alignIcon = 'fa-align-center';
+                if (el.textAlign === 'left') alignIcon = 'fa-align-left';
+                if (el.textAlign === 'right') alignIcon = 'fa-align-right';
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2 truncate">
+                        <i class="fa-solid ${icon}"></i>
+                        <span class="truncate">${el.label}</span>
+                    </div>
+                    <div class="flex items-center space-x-1.5 text-[10px] text-slate-400 font-mono">
+                        ${el.type !== 'image' ? `<i class="fa-solid ${alignIcon} text-slate-400"></i>` : ''}
+                        <span>(${el.x}, ${el.y})</span>
+                    </div>
+                `;
+
+                listContainer.appendChild(item);
+            });
+        }
+
+        function inspectElement(id) {
+            const inspectTitle = document.getElementById('inspect-field-title');
+            const deleteBtn = document.getElementById('delete-field-btn');
+            const textInspector = document.getElementById('text-inspector-content');
+            const imageInspector = document.getElementById('image-inspector-content');
+            const textAlignSection = document.getElementById('text-align-section');
+            const propLabelInput = document.getElementById('prop-label');
+            const prefixSuffixBox = document.getElementById('prefix-suffix-box');
+            const propTextHint = document.getElementById('prop-text-hint');
+
+            const el = state.elements.find(item => item.id === id);
+            if (!el) {
+                if (inspectTitle) inspectTitle.innerText = '未選取';
+                if (deleteBtn) deleteBtn.classList.add('hidden');
+                if (textInspector) textInspector.classList.add('hidden');
+                if (imageInspector) imageInspector.classList.add('hidden');
+                if (textAlignSection) textAlignSection.classList.add('hidden');
+                if (propLabelInput) propLabelInput.value = '';
+                return;
+            }
+
+            if (propLabelInput) propLabelInput.value = el.label || '';
+            if (inspectTitle) inspectTitle.innerText = `${el.label}`;
+            if (deleteBtn) deleteBtn.classList.remove('hidden');
+
+            if (el.type === 'image') {
+                textInspector?.classList.add('hidden');
+                imageInspector?.classList.remove('hidden');
+                textAlignSection?.classList.add('hidden');
+
+                document.getElementById('img-prop-width').value = el.width;
+                document.getElementById('img-prop-height').value = el.height;
+                document.getElementById('img-prop-opacity').value = (el.opacity !== undefined ? el.opacity : 1) * 100;
+                document.getElementById('img-prop-rotate').value = el.rotation || 0;
+                document.getElementById('img-prop-x').value = el.x;
+                document.getElementById('img-prop-y').value = el.y;
+                document.getElementById('img-prop-lockratio').checked = el.lockRatio !== false;
+            } else {
+                imageInspector?.classList.add('hidden');
+                textInspector?.classList.remove('hidden');
+                textAlignSection?.classList.remove('hidden');
+
+                renderVariableChips();
+
+                if (el.type === 'dynamic') {
+                    prefixSuffixBox?.classList.remove('hidden');
+                    propTextHint?.classList.remove('hidden');
+                    document.getElementById('prop-prefix').value = el.prefix || '';
+                    document.getElementById('prop-suffix').value = el.suffix || '';
+                    
+                    const curRecord = state.rosterData[state.previewIndex] || state.rosterData[0];
+                    const previewVal = (curRecord && el.mappingKey && curRecord[el.mappingKey]) ? curRecord[el.mappingKey] : `[${el.mappingKey || el.label}]`;
+                    document.getElementById('prop-text').placeholder = `留空時顯示套印內容；亦可輸入 {班級} {姓名} 等合併標籤`;
+                } else {
+                    prefixSuffixBox?.classList.add('hidden');
+                    propTextHint?.classList.add('hidden');
+                    document.getElementById('prop-text').placeholder = '可輸入固定文字，或使用 {班級}、{姓名} 合併變數';
+                }
+
+                updateAlignButtonsUI(el.textAlign || 'center');
+
+                document.getElementById('prop-text').value = el.text || '';
+                document.getElementById('prop-wrap').value = el.wrapMode || 'auto';
+                document.getElementById('prop-width').value = el.width || 200;
+                document.getElementById('prop-font').value = el.fontFamily;
+                document.getElementById('prop-size').value = el.fontSize;
+                document.getElementById('prop-color').value = el.color;
+                document.getElementById('prop-writing').value = el.writingMode;
+                document.getElementById('prop-spacing').value = el.letterSpacing || 0;
+                document.getElementById('prop-lineheight').value = el.lineHeight || 1.2;
+                document.getElementById('prop-x').value = el.x;
+                document.getElementById('prop-y').value = el.y;
+                document.getElementById('prop-bold').checked = el.bold;
+                document.getElementById('prop-italic').checked = el.italic;
+            }
+        }
+
+        /* Render clickable chips for all Excel headers to easily merge variables */
+        function renderVariableChips() {
+            const list = document.getElementById('variable-chips-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            const headers = (state.rosterHeaders && state.rosterHeaders.length > 0) 
+                ? state.rosterHeaders 
+                : ['班級', '姓名', '獎項', '獲獎事由', '日期', '證號'];
+
+            headers.forEach(h => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'px-1.5 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-800 text-[10px] font-semibold rounded border border-blue-200 transition flex items-center gap-0.5 select-none';
+                btn.title = `點擊在文字方塊游標處插入 {${h}} 變數`;
+                btn.innerHTML = `<i class="fa-solid fa-plus text-[8px]"></i><span>{${h}}</span>`;
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    insertVariableToText(h);
+                };
+                list.appendChild(btn);
+            });
+        }
+
+        function insertVariableToText(varName) {
+            const textarea = document.getElementById('prop-text');
+            if (!textarea) return;
+            const tag = `{${varName}}`;
+            const start = textarea.selectionStart !== undefined ? textarea.selectionStart : textarea.value.length;
+            const end = textarea.selectionEnd !== undefined ? textarea.selectionEnd : textarea.value.length;
+            const val = textarea.value;
+
+            textarea.value = val.substring(0, start) + tag + val.substring(end);
+            textarea.selectionStart = textarea.selectionEnd = start + tag.length;
+            textarea.focus();
+            updateElementProp('text', textarea.value);
+            showToast(`已插入變數標籤 {${varName}}`);
+        }
+
+        function updateElementLabel(newLabel) {
+            const el = state.elements.find(item => item.id === state.selectedElementId);
+            if (!el) return;
+            el.label = newLabel;
+            document.getElementById('inspect-field-title').innerText = `${el.label}`;
+            renderElementsList();
+        }
+
+        function updateElementProp(prop, value) {
+            const el = state.elements.find(item => item.id === state.selectedElementId);
+            if (!el) return;
+
+            if (['x', 'y', 'width', 'height', 'fontSize', 'letterSpacing', 'lineHeight', 'rotation', 'opacity'].includes(prop)) {
+                el[prop] = parseFloat(value) || 0;
+            } else {
+                el[prop] = value;
+            }
+
+            renderElementsOnCanvas();
+            renderElementsList();
+        }
+
+        function updateImageSize(dim, val) {
+            const el = state.elements.find(item => item.id === state.selectedElementId);
+            if (!el || el.type !== 'image') return;
+
+            const num = parseFloat(val) || 10;
+            const lockRatio = el.lockRatio !== false;
+
+            if (lockRatio) {
+                const ratio = el.aspectRatio || (el.width / el.height) || 1;
+                if (dim === 'width') {
+                    el.width = num;
+                    el.height = Math.round(num / ratio);
+                    document.getElementById('img-prop-height').value = el.height;
+                } else {
+                    el.height = num;
+                    el.width = Math.round(num * ratio);
+                    document.getElementById('img-prop-width').value = el.width;
+                }
+            } else {
+                el[dim] = num;
+            }
+
+            renderElementsOnCanvas();
+            renderElementsList();
+        }
+
+        function addNewField(type = 'static') {
+            const newId = `el_${Date.now()}`;
+            const isDynamic = type === 'dynamic';
+
+            const newEl = {
+                id: newId,
+                type: type,
+                label: isDynamic ? `自訂變數 ${state.elements.length + 1}` : `固定文字 ${state.elements.length + 1}`,
+                mappingKey: isDynamic ? '' : undefined,
+                text: isDynamic ? '預設套印文字' : '請輸入固定文字內容',
+                prefix: '',
+                suffix: '',
+                x: 270,
+                y: 260,
+                width: 300,
+                fontSize: 22,
+                fontFamily: 'font-kai',
+                color: '#1e293b',
+                writingMode: 'horizontal-tb',
+                textAlign: 'center',
+                bold: false,
+                italic: false,
+                letterSpacing: 1,
+                lineHeight: 1.3,
+                wrapMode: 'auto'
+            };
+
+            state.elements.push(newEl);
+            selectElement(newId);
+            showToast(`已新增${isDynamic ? '套印動態變數' : '固定文字欄位'}`);
+        }
+
+        function uploadCustomImage(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const newId = `img_${Date.now()}`;
+                const img = new Image();
+                img.onload = () => {
+                    const ratio = img.width / img.height;
+                    const defaultWidth = 120;
+                    const defaultHeight = Math.round(defaultWidth / ratio);
+
+                    const newImgEl = {
+                        id: newId,
+                        type: 'image',
+                        label: file.name.replace(/\.[^/.]+$/, "") || '自訂圖案/印章',
+                        src: evt.target.result,
+                        x: 350,
+                        y: 350,
+                        width: defaultWidth,
+                        height: defaultHeight,
+                        aspectRatio: ratio,
+                        lockRatio: true,
+                        opacity: 1,
+                        rotation: 0
+                    };
+                    state.elements.push(newImgEl);
+                    selectElement(newId);
+                    showToast('已新增自訂圖案/印章');
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function deleteSelectedElement() {
+            if (!state.selectedElementId) return;
+            state.elements = state.elements.filter(el => el.id !== state.selectedElementId);
+            state.selectedElementId = state.elements[0]?.id || null;
+            renderElementsOnCanvas();
+            renderElementsList();
+            inspectElement(state.selectedElementId);
+            showToast('已刪除選取元件');
+        }
+
+        function resetElementPositions() {
+            state.elements = [];
+            state.selectedElementId = null;
+            renderElementsOnCanvas();
+            renderElementsList();
+            inspectElement(null);
+            showToast('已清空畫布所有元件');
+        }
+
+        /* ==================== ALIGNMENT TOOLS ==================== */
+        function setTextAlignment(alignMode) {
+            const el = state.elements.find(item => item.id === state.selectedElementId);
+            if (!el || el.type === 'image') return;
+
+            el.textAlign = alignMode;
+            updateAlignButtonsUI(alignMode);
+            renderElementsOnCanvas();
+            renderElementsList();
+            showToast(`文字對齊設定為「${alignMode === 'left' ? '靠左' : alignMode === 'center' ? '置中' : '靠右'}」`);
+        }
+
+        function updateAlignButtonsUI(alignMode) {
+            const btnLeft = document.getElementById('btn-align-left');
+            const btnCenter = document.getElementById('btn-align-center');
+            const btnRight = document.getElementById('btn-align-right');
+            const label = document.getElementById('current-text-align-label');
+
+            [btnLeft, btnCenter, btnRight].forEach(b => b?.classList.remove('active'));
+
+            if (alignMode === 'left') {
+                btnLeft?.classList.add('active');
+                if (label) label.innerText = '靠左';
+            } else if (alignMode === 'right') {
+                btnRight?.classList.add('active');
+                if (label) label.innerText = '靠右';
+            } else {
+                btnCenter?.classList.add('active');
+                if (label) label.innerText = '置中';
+            }
+        }
+
+        function alignElementToCanvas(alignment) {
+            const el = state.elements.find(item => item.id === state.selectedElementId);
+            if (!el) return;
+
+            const canvasWidth = state.canvasWidthPx;
+            const canvasHeight = state.canvasHeightPx;
+            const elWidth = el.width || 200;
+            const elHeight = el.height || 40;
+            const margin = 38; // 10mm margin base
+
+            if (alignment === 'left') {
+                el.x = margin;
+                showToast(`元件已靠齊左側邊界`);
+            } else if (alignment === 'center') {
+                el.x = Math.max(0, Math.round((canvasWidth - elWidth) / 2));
+                showToast(`元件已水平置中`);
+            } else if (alignment === 'right') {
+                el.x = Math.max(0, Math.round(canvasWidth - elWidth - margin));
+                showToast(`元件已靠齊右側邊界`);
+            } else if (alignment === 'middle') {
+                el.y = Math.max(0, Math.round((canvasHeight - elHeight) / 2));
+                showToast(`元件已垂直置中`);
+            }
+
+            renderElementsOnCanvas();
+            inspectElement(el.id);
+        }
+
+        /* ==================== FONT UPLOAD ==================== */
+        function handleFontUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const fontName = file.name.replace(/\.[^/.]+$/, "");
+            const fontId = `custom_font_${Date.now()}`;
+            const reader = new FileReader();
+
+            reader.onload = async (event) => {
+                try {
+                    const dataUrl = event.target.result;
+                    const styleTag = document.getElementById('custom-fonts-style');
+                    const fontFaceRule = `
+                        @font-face {
+                            font-family: '${fontId}';
+                            src: url('${dataUrl}');
+                        }
+                        .${fontId} {
+                            font-family: '${fontId}', 'Noto Serif TC', serif;
+                        }
+                    `;
+                    styleTag.innerHTML += fontFaceRule;
+
+                    state.customFonts.push({
+                        id: fontId,
+                        name: fontName,
+                        family: fontId,
+                        dataUrl: dataUrl
+                    });
+
+                    updateFontSelectOptions();
+
+                    const currentEl = state.elements.find(item => item.id === state.selectedElementId);
+                    if (currentEl && currentEl.type !== 'image') {
+                        currentEl.fontFamily = fontId;
+                        document.getElementById('prop-font').value = fontId;
+                        renderElementsOnCanvas();
+                        renderElementsList();
+                    }
+
+                    showToast(`字型「${fontName}」載入成功！`);
+                } catch (err) {
+                    console.error('Font load error:', err);
+                    showToast('字型載入失敗，請確認檔案格式', 'warning');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateFontSelectOptions() {
+            const optgroup = document.getElementById('custom-fonts-optgroup');
+            if (!optgroup) return;
+            optgroup.innerHTML = '';
+
+            state.customFonts.forEach(font => {
+                const opt = document.createElement('option');
+                opt.value = font.id;
+                opt.innerText = `★ ${font.name}`;
+                optgroup.appendChild(opt);
+            });
+        }
+
+        /* ==================== MOUSE DRAG & RESIZE ==================== */
+        let isDragging = false;
+        let dragElementId = null;
+        let startMouseX = 0, startMouseY = 0;
+        let startElemX = 0, startElemY = 0;
+
+        function startDragElement(e, id) {
+            if (e.target.classList.contains('resize-handle')) return;
+            e.preventDefault();
+            selectElement(id);
+            isDragging = true;
+            dragElementId = id;
+
+            const el = state.elements.find(item => item.id === id);
+            startMouseX = e.clientX;
+            startMouseY = e.clientY;
+            startElemX = el.x;
+            startElemY = el.y;
+
+            document.addEventListener('mousemove', onDragElement);
+            document.addEventListener('mouseup', stopDragElement);
+        }
+
+        function onDragElement(e) {
+            if (!isDragging || !dragElementId) return;
+            const dx = (e.clientX - startMouseX) / state.zoomLevel;
+            const dy = (e.clientY - startMouseY) / state.zoomLevel;
+
+            const el = state.elements.find(item => item.id === dragElementId);
+            if (el) {
+                el.x = Math.max(0, Math.round(startElemX + dx));
+                el.y = Math.max(0, Math.round(startElemY + dy));
+
+                const domEl = document.getElementById(`canvas-el-${el.id}`);
+                if (domEl) {
+                    domEl.style.left = `${el.x}px`;
+                    domEl.style.top = `${el.y}px`;
+                }
+
+                if (el.type === 'image') {
+                    const xInput = document.getElementById('img-prop-x');
+                    const yInput = document.getElementById('img-prop-y');
+                    if (xInput) xInput.value = el.x;
+                    if (yInput) yInput.value = el.y;
+                } else {
+                    const xInput = document.getElementById('prop-x');
+                    const yInput = document.getElementById('prop-y');
+                    if (xInput) xInput.value = el.x;
+                    if (yInput) yInput.value = el.y;
+                }
+            }
+        }
+
+        function stopDragElement() {
+            isDragging = false;
+            dragElementId = null;
+            document.removeEventListener('mousemove', onDragElement);
+            document.removeEventListener('mouseup', stopDragElement);
+            renderElementsList();
+        }
+
+        let isResizing = false;
+        let resizeElementId = null;
+        let resizeDirection = null;
+        let resizeStartX = 0, resizeStartY = 0;
+        let resizeStartWidth = 0, resizeStartHeight = 0;
+
+        function startResizeElement(e, id, dir) {
+            e.stopPropagation();
+            e.preventDefault();
+            isResizing = true;
+            resizeElementId = id;
+            resizeDirection = dir;
+
+            const el = state.elements.find(item => item.id === id);
+            resizeStartX = e.clientX;
+            resizeStartY = e.clientY;
+            resizeStartWidth = el.width || 100;
+            resizeStartHeight = el.height || 100;
+
+            document.addEventListener('mousemove', onResizeElement);
+            document.addEventListener('mouseup', stopResizeElement);
+        }
+
+        function onResizeElement(e) {
+            if (!isResizing || !resizeElementId) return;
+            const dx = (e.clientX - resizeStartX) / state.zoomLevel;
+            const dy = (e.clientY - resizeStartY) / state.zoomLevel;
+
+            const el = state.elements.find(item => item.id === resizeElementId);
+            if (!el) return;
+
+            if (el.type === 'image') {
+                const lockRatio = el.lockRatio !== false;
+                const ratio = el.aspectRatio || (resizeStartWidth / resizeStartHeight) || 1;
+
+                if (lockRatio) {
+                    const newWidth = Math.max(20, Math.round(resizeStartWidth + dx));
+                    el.width = newWidth;
+                    el.height = Math.max(20, Math.round(newWidth / ratio));
+                } else {
+                    el.width = Math.max(20, Math.round(resizeStartWidth + dx));
+                    el.height = Math.max(20, Math.round(resizeStartHeight + dy));
+                }
+
+                document.getElementById('img-prop-width').value = el.width;
+                document.getElementById('img-prop-height').value = el.height;
+            } else {
+                el.width = Math.max(40, Math.round(resizeStartWidth + dx));
+                document.getElementById('prop-width').value = el.width;
+            }
+
+            renderElementsOnCanvas();
+        }
+
+        function stopResizeElement() {
+            isResizing = false;
+            resizeElementId = null;
+            resizeDirection = null;
+            document.removeEventListener('mousemove', onResizeElement);
+            document.removeEventListener('mouseup', stopResizeElement);
+            inspectElement(state.selectedElementId);
+        }
+
+        /* ==================== EXCEL ROSTER & DISPLAY COLUMNS ==================== */
+        function handleExcelUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    if (json.length < 2) {
+                        showToast('Excel 檔案內無足夠欄位或內容', 'warning');
+                        return;
+                    }
+
+                    state.rosterHeaders = json[0].map(h => String(h).trim()).filter(h => h.length > 0);
+                    state.rosterData = [];
+
+                    for (let i = 1; i < json.length; i++) {
+                        const rowArr = json[i];
+                        if (!rowArr || rowArr.length === 0) continue;
+                        const rowObj = {};
+                        state.rosterHeaders.forEach((header, colIdx) => {
+                            rowObj[header] = rowArr[colIdx] !== undefined ? String(rowArr[colIdx]).trim() : '';
+                        });
+                        state.rosterData.push(rowObj);
+                    }
+
+                    state.selectedRosterIndices = state.rosterData.map((_, idx) => idx);
+
+                    // Auto select display columns (up to 3)
+                    state.displayColumns = state.rosterHeaders.slice(0, 3);
+
+                    renderRosterTable();
+                    updateDisplayColumnsSelectors();
+                    renderVariableChips();
+                    autoMapFields();
+                    showToast(`成功匯入 ${state.rosterData.length} 筆獲獎名冊資料！`);
+                } catch (err) {
+                    console.error(err);
+                    showToast('讀取 Excel 失敗，請檢查檔案格式', 'warning');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadSampleData() {
+            state.rosterHeaders = ['班級', '姓名', '獎項', '獲獎事由', '日期', '證號'];
+            state.rosterData = [
+                { '班級': '七年一班', '姓名': '張語晨', '獎項': '特優第一名', '獲獎事由': '參加 113 學年度校慶卡拉 OK 歌唱大賽\n表現優異 唱腔動人 榮獲佳績', '日期': '中華民國 113 年 11 月 15 日', '證號': '佳國獎字第 113001 號' },
+                { '班級': '八年三班', '姓名': '陳佳林', '獎項': '優等獎', '獲獎事由': '參加 全校英語朗讀競賽八年級組\n發音標準 儀態端莊 表現優異', '日期': '中華民國 113 年 11 月 15 日', '證號': '佳國獎字第 113002 號' },
+                { '班級': '九年五班', '姓名': '林資勝', '獎項': '特優第一名', '獲獎事由': '代表佳林國中參加 新北市科學展覽競賽\n題目獨創 榮獲特優第一名', '日期': '中華民國 113 年 11 月 15 日', '證號': '佳國獎字第 113003 號' },
+                { '班級': '七年六班', '姓名': '黃立宏', '獎項': '佳作', '獲獎事由': '參加 全校硬筆書法比賽七年級組\n運筆流暢 結構嚴謹 榮獲佳績', '日期': '中華民國 113 年 11 月 15 日', '證號': '佳國獎字第 113004 號' },
+                { '班級': '八年二班', '姓名': '許婷婷', '獎項': '服務楷模獎', '獲獎事由': '擔任 113 學年度學務處環保志工\n熱心服務 勤奮負責 績效卓著', '日期': '中華民國 113 年 11 月 15 日', '證號': '佳國獎字第 113005 號' },
+            ];
+
+            state.selectedRosterIndices = state.rosterData.map((_, idx) => idx);
+            state.displayColumns = ['班級', '姓名', '獎項'];
+            renderRosterTable();
+            updateDisplayColumnsSelectors();
+            renderVariableChips();
+            autoMapFields();
+            showToast('已載入 5 筆佳林國中示範名冊數據');
+        }
+
+        function updateDisplayColumnsSelectors() {
+            const selects = [
+                document.getElementById('disp-col-1'),
+                document.getElementById('disp-col-2'),
+                document.getElementById('disp-col-3')
+            ];
+
+            selects.forEach((sel, idx) => {
+                if (!sel) return;
+                sel.innerHTML = idx === 2 ? `<option value="">(無)</option>` : `<option value="">(未設定)</option>`;
+                state.rosterHeaders.forEach(h => {
+                    const selected = state.displayColumns[idx] === h ? 'selected' : '';
+                    sel.innerHTML += `<option value="${h}" ${selected}>${h}</option>`;
+                });
+            });
+        }
+
+        function updateDisplayColumn(colIndex, val) {
+            state.displayColumns[colIndex] = val || '';
+            state.displayColumns = state.displayColumns.filter((c, i) => i < 2 || c !== '');
+            renderDisplayColumnsBadge();
+            renderBatchPreviewList();
+            showToast(`已更新名冊辨識欄位設定`);
+        }
+
+        function renderDisplayColumnsBadge() {
+            const container = document.getElementById('active-display-columns-badge');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const validCols = state.displayColumns.filter(c => c && c.trim() !== '');
+            if (validCols.length === 0) {
+                container.innerHTML = `<span class="text-[10px] text-slate-400">尚未選取任何欄位</span>`;
+                return;
+            }
+
+            validCols.forEach((col, idx) => {
+                const badge = document.createElement('span');
+                badge.className = 'bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1';
+                badge.innerHTML = `<span class="text-blue-500 font-bold">${idx + 1}.</span> ${col}`;
+                container.appendChild(badge);
+            });
+        }
+
+        function renderRosterTable() {
+            const countBadge = document.getElementById('roster-count-badge');
+            const headerRow = document.getElementById('table-header-row');
+            const bodyRows = document.getElementById('table-body-rows');
+
+            if (countBadge) countBadge.innerText = `${state.rosterData.length} 筆資料`;
+            if (headerRow) {
+                headerRow.innerHTML = `<th class="p-3 border-r border-slate-200 w-12 text-center">#</th>`;
+                state.rosterHeaders.forEach(h => {
+                    headerRow.innerHTML += `<th class="p-3 border-r border-slate-200 font-semibold">${h}</th>`;
+                });
+            }
+
+            if (!bodyRows) return;
+            if (state.rosterData.length === 0) {
+                bodyRows.innerHTML = `<tr><td colspan="${state.rosterHeaders.length + 1}" class="p-8 text-center text-slate-400">尚無名冊資料。</td></tr>`;
+                return;
+            }
+
+            bodyRows.innerHTML = '';
+            state.rosterData.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+                let tdHtml = `<td class="p-3 text-center border-r border-slate-200 font-mono text-slate-400">${idx + 1}</td>`;
+                state.rosterHeaders.forEach(h => {
+                    tdHtml += `<td class="p-3 border-r border-slate-200">${row[h] || ''}</td>`;
+                });
+                tr.innerHTML = tdHtml;
+                bodyRows.appendChild(tr);
+            });
+        }
+
+        function clearRosterData() {
+            state.rosterData = [];
+            state.selectedRosterIndices = [];
+            renderRosterTable();
+            showToast('已清空名冊資料');
+        }
+
+        function autoMapFields() {
+            state.elements.forEach(el => {
+                if (el.type === 'dynamic') {
+                    const match = state.rosterHeaders.find(h => h.includes(el.label) || el.label.includes(h) || (el.mappingKey && h.includes(el.mappingKey)));
+                    if (match) {
+                        el.mappingKey = match;
+                    }
+                }
+            });
+        }
+
+        function renderMappingInterface() {
+            const container = document.getElementById('mapping-list-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const dynamicElements = state.elements.filter(el => el.type === 'dynamic');
+
+            if (dynamicElements.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">目前畫布無動態套印變數。</div>`;
+                return;
+            }
+
+            dynamicElements.forEach(el => {
+                const card = document.createElement('div');
+                card.className = 'p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-between gap-4';
+
+                let optionsHtml = `<option value="">-- 固定顯示預設文字: "${el.text}" --</option>`;
+                state.rosterHeaders.forEach(h => {
+                    const selected = el.mappingKey === h ? 'selected' : '';
+                    optionsHtml += `<option value="${h}" ${selected}>Excel 欄位：${h}</option>`;
+                });
+
+                card.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                            <i class="fa-solid fa-database"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800">${el.label}</h4>
+                            <p class="text-[11px] text-slate-400">畫布預設: ${el.text.substring(0, 20)}</p>
+                        </div>
+                    </div>
+                    <div class="w-64">
+                        <select onchange="updateMapping('${el.id}', this.value)" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        function updateMapping(elId, val) {
+            const el = state.elements.find(item => item.id === elId);
+            if (el) {
+                el.mappingKey = val;
+                showToast(`已對應「${el.label}」至 Excel 的「${val || '固定文字'}」`);
+            }
+        }
+
+        /* ==================== BATCH PREVIEW & PRINT ==================== */
+        function renderBatchPreviewList() {
+            const checklist = document.getElementById('preview-checklist');
+            const selectedCount = document.getElementById('selected-count');
+            const totalCount = document.getElementById('total-count');
+            const previewTotalCount = document.getElementById('preview-total-count');
+
+            if (!checklist) return;
+            checklist.innerHTML = '';
+
+            if (totalCount) totalCount.innerText = state.rosterData.length;
+            if (previewTotalCount) previewTotalCount.innerText = state.rosterData.length;
+            if (selectedCount) selectedCount.innerText = state.selectedRosterIndices.length;
+
+            if (state.rosterData.length === 0) {
+                checklist.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">尚無名冊資料。</div>`;
+                return;
+            }
+
+            const validCols = state.displayColumns.filter(c => c && c.trim() !== '');
+
+            state.rosterData.forEach((row, idx) => {
+                const isChecked = state.selectedRosterIndices.includes(idx);
+                const isCurrent = state.previewIndex === idx;
+
+                // Format display text according to 1~3 user selected columns
+                let col1 = validCols[0] ? (row[validCols[0]] || '') : '';
+                let col2 = validCols[1] ? (row[validCols[1]] || '') : '';
+                let col3 = validCols[2] ? (row[validCols[2]] || '') : '';
+
+                if (!col1 && !col2 && !col3) {
+                    col1 = row['姓名'] || row['獲獎人'] || `資料 #${idx + 1}`;
+                }
+
+                const item = document.createElement('div');
+                item.className = `p-2 rounded-lg text-xs flex items-center justify-between border cursor-pointer transition ${isCurrent ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-400' : 'border-slate-200 bg-white hover:bg-slate-100'}`;
+
+                item.innerHTML = `
+                    <label class="flex items-center space-x-2 cursor-pointer flex-1 truncate pr-2" onclick="event.stopPropagation()">
+                        <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleSelectRoster(${idx}, this.checked)" class="rounded text-blue-600">
+                        <div class="flex items-center space-x-1.5 truncate">
+                            ${col1 ? `<span class="font-bold text-slate-800 truncate">${col1}</span>` : ''}
+                            ${col2 ? `<span class="text-slate-600 font-medium truncate">${col2}</span>` : ''}
+                            ${col3 ? `<span class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1 py-0.2 rounded truncate">${col3}</span>` : ''}
+                        </div>
+                    </label>
+                    <button onclick="setPreviewIndex(${idx})" class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold px-2 py-1 rounded bg-blue-100/60 hover:bg-blue-100 shrink-0">預覽</button>
+                `;
+
+                checklist.appendChild(item);
+            });
+        }
+
+        function toggleSelectRoster(idx, checked) {
+            if (checked) {
+                if (!state.selectedRosterIndices.includes(idx)) state.selectedRosterIndices.push(idx);
+            } else {
+                state.selectedRosterIndices = state.selectedRosterIndices.filter(i => i !== idx);
+            }
+            renderBatchPreviewList();
+        }
+
+        function selectAllRoster(select) {
+            if (select) {
+                state.selectedRosterIndices = state.rosterData.map((_, idx) => idx);
+            } else {
+                state.selectedRosterIndices = [];
+            }
+            renderBatchPreviewList();
+        }
+
+        function filterRosterList(query) {
+            const checklist = document.getElementById('preview-checklist');
+            if (!checklist) return;
+            const items = checklist.children;
+            const q = query.toLowerCase();
+
+            for (let item of items) {
+                const text = item.innerText.toLowerCase();
+                if (text.includes(q)) {
+                    item.classList.remove('hidden');
+                } else {
+                    item.classList.add('hidden');
+                }
+            }
+        }
+
+        function setPreviewIndex(idx) {
+            state.previewIndex = idx;
+            const idxBadge = document.getElementById('preview-current-idx');
+            if (idxBadge) idxBadge.innerText = idx + 1;
+            renderBatchPreviewList();
+            renderSinglePreviewCanvas();
+        }
+
+        /* Pure WYSIWYG Single Preview Canvas */
+        function renderSinglePreviewCanvas() {
+            const canvas = document.getElementById('single-preview-canvas');
+            if (!canvas) return;
+
+            const record = state.rosterData[state.previewIndex] || {};
+
+            let bgStyle = '';
+            // Respect printBackground setting in Step 4 preview
+            if (state.printBackground) {
+                if (state.bgType === 'custom' && state.customBgUrl) {
+                    bgStyle = `background-image: url("${state.customBgUrl}"); background-size: ${state.bgFillMode === 'stretch' ? '100% 100%' : 'contain'};`;
+                } else if (presetBgs[state.bgType]) {
+                    bgStyle = `background-image: url('${presetBgs[state.bgType]}'); background-size: ${state.bgFillMode === 'stretch' ? '100% 100%' : 'contain'};`;
+                }
+            }
+
+            canvas.innerHTML = '';
+
+            // Background layer
+            const bgDiv = document.createElement('div');
+            bgDiv.className = 'absolute inset-0 bg-center bg-no-repeat pointer-events-none';
+            bgDiv.style.cssText = bgStyle;
+            canvas.appendChild(bgDiv);
+
+            // Elements container
+            const elementsContainer = document.createElement('div');
+            elementsContainer.className = 'absolute inset-0';
+
+            state.elements.forEach(el => {
+                const { wrapClass, writingClass, fontClass, styleStr } = getElementSharedStyles(el);
+                const elDiv = document.createElement('div');
+
+                if (el.type === 'image') {
+                    elDiv.style.cssText = styleStr;
+                    const img = document.createElement('img');
+                    img.src = el.src;
+                    img.className = 'w-full h-full object-contain pointer-events-none';
+                    elDiv.appendChild(img);
+                } else {
+                    elDiv.className = `${fontClass} ${wrapClass} ${writingClass}`;
+                    elDiv.style.cssText = styleStr;
+                    // Unified text resolver with merged variable tags support
+                    elDiv.textContent = resolveElementText(el, record);
+                }
+
+                elementsContainer.appendChild(elDiv);
+            });
+
+            canvas.appendChild(elementsContainer);
+        }
+
+        function triggerPrint() {
+            // Dynamically inject @page dimensions (supporting standard A4 and custom sizes)
+            let printStyleTag = document.getElementById('dynamic-print-page-style');
+            if (!printStyleTag) {
+                printStyleTag = document.createElement('style');
+                printStyleTag.id = 'dynamic-print-page-style';
+                document.head.appendChild(printStyleTag);
+            }
+
+            const pageSizeRule = (state.orientation === 'landscape')
+                ? 'size: A4 landscape !important;'
+                : (state.orientation === 'portrait')
+                    ? 'size: A4 portrait !important;'
+                    : `size: ${state.paperWidthMm}mm ${state.paperHeightMm}mm !important;`;
+
+            printStyleTag.innerHTML = `
+                @page {
+                    ${pageSizeRule}
+                    margin: 0mm !important;
+                }
+            `;
+
+            if (state.rosterData.length === 0 && state.selectedRosterIndices.length === 0) {
+                buildPrintMountPoint([{ sample: true }]);
+            } else if (state.selectedRosterIndices.length === 0) {
+                showToast('請先選取要列印的名冊對象！', 'warning');
+                return;
+            } else {
+                const recordsToPrint = state.selectedRosterIndices.map(i => state.rosterData[i]);
+                buildPrintMountPoint(recordsToPrint);
+            }
+
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        }
+
+        function buildPrintMountPoint(records) {
+            const mountPoint = document.getElementById('print-mount-point');
+            if (!mountPoint) return;
+            mountPoint.innerHTML = '';
+
+            const baseWidth = state.canvasWidthPx;
+            const baseHeight = state.canvasHeightPx;
+            const pageTargetWidth = `${state.paperWidthMm}mm`;
+            const pageTargetHeight = `${state.paperHeightMm}mm`;
+
+            records.forEach((record, idx) => {
+                const page = document.createElement('div');
+                page.className = `print-cert-page ${idx < records.length - 1 ? 'page-break' : ''}`;
+                page.style.cssText = `
+                    position: relative;
+                    width: ${pageTargetWidth};
+                    height: ${pageTargetHeight};
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                    box-sizing: border-box;
+                    background-color: #ffffff;
+                `;
+
+                let bgStyle = '';
+                // Check if background printing is enabled
+                if (state.printBackground) {
+                    const bgSizeRule = state.bgFillMode === 'stretch' ? '100% 100%' : 'contain';
+                    if (state.bgType === 'custom' && state.customBgUrl) {
+                        bgStyle = `background-image: url("${state.customBgUrl}"); background-size: ${bgSizeRule};`;
+                    } else if (presetBgs[state.bgType]) {
+                        bgStyle = `background-image: url('${presetBgs[state.bgType]}'); background-size: ${bgSizeRule};`;
+                    }
+                }
+
+                // Inner container matches the exact design canvas coordinates, scaled to full-bleed dimensions
+                const pageInner = document.createElement('div');
+                pageInner.style.cssText = `
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: ${baseWidth}px;
+                    height: ${baseHeight}px;
+                    transform-origin: top left;
+                    transform: scale(calc(${state.paperWidthMm}mm / ${baseWidth}px));
+                `;
+
+                // Background layer inside pageInner
+                const bgDiv = document.createElement('div');
+                bgDiv.className = 'absolute inset-0 bg-center bg-no-repeat pointer-events-none';
+                bgDiv.style.cssText = bgStyle;
+                pageInner.appendChild(bgDiv);
+
+                // Elements container
+                const elementsContainer = document.createElement('div');
+                elementsContainer.className = 'absolute inset-0';
+
+                state.elements.forEach(el => {
+                    const { wrapClass, writingClass, fontClass, styleStr } = getElementSharedStyles(el);
+                    const elDiv = document.createElement('div');
+
+                    if (el.type === 'image') {
+                        elDiv.style.cssText = styleStr;
+                        const img = document.createElement('img');
+                        img.src = el.src;
+                        img.className = 'w-full h-full object-contain pointer-events-none';
+                        elDiv.appendChild(img);
+                    } else {
+                        elDiv.className = `${fontClass} ${wrapClass} ${writingClass}`;
+                        elDiv.style.cssText = styleStr;
+                        elDiv.textContent = resolveElementText(el, record);
+                    }
+
+                    elementsContainer.appendChild(elDiv);
+                });
+
+                pageInner.appendChild(elementsContainer);
+                page.appendChild(pageInner);
+                mountPoint.appendChild(page);
+            });
+        }
+
+        function openExportModal() {
+            const modal = document.getElementById('export-modal');
+            const rosterCountSpan = document.getElementById('export-modal-roster-count');
+            if (rosterCountSpan) rosterCountSpan.innerText = state.rosterData.length;
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeExportModal() {
+            const modal = document.getElementById('export-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function confirmExportTemplateConfig() {
+            const includeRoster = document.getElementById('export-include-roster')?.checked || false;
+
+            const config = {
+                version: '3.0',
+                school: '佳林國中',
+                orientation: state.orientation,
+                paperWidthMm: state.paperWidthMm,
+                paperHeightMm: state.paperHeightMm,
+                canvasWidthPx: state.canvasWidthPx,
+                canvasHeightPx: state.canvasHeightPx,
+                bgFillMode: state.bgFillMode,
+                bgType: state.bgType,
+                customBgUrl: state.customBgUrl,
+                elements: state.elements,
+                customFonts: state.customFonts,
+                displayColumns: state.displayColumns,
+                printBackground: state.printBackground
+            };
+
+            if (includeRoster && state.rosterData.length > 0) {
+                config.rosterHeaders = state.rosterHeaders;
+                config.rosterData = state.rosterData;
+                config.selectedRosterIndices = state.selectedRosterIndices;
+            }
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            const rosterSuffix = (includeRoster && state.rosterData.length > 0) ? `_含名冊${state.rosterData.length}筆` : '';
+            downloadAnchor.setAttribute("download", `佳林國中獎狀版面排版設定${rosterSuffix}_${Date.now()}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+
+            closeExportModal();
+            showToast(includeRoster && state.rosterData.length > 0 
+                ? `已成功匯出版面設定與 ${state.rosterData.length} 筆名冊資料！` 
+                : '已成功匯出版面排版設定 JSON 檔！');
+        }
+
+        function importTemplateConfig(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const parsed = JSON.parse(evt.target.result);
+                    if (!parsed.elements || !Array.isArray(parsed.elements)) {
+                        showToast('匯入檔案格式不正確', 'warning');
+                        return;
+                    }
+
+                    if (parsed.orientation) state.orientation = parsed.orientation;
+                    if (parsed.paperWidthMm) state.paperWidthMm = parsed.paperWidthMm;
+                    if (parsed.paperHeightMm) state.paperHeightMm = parsed.paperHeightMm;
+                    if (parsed.canvasWidthPx) state.canvasWidthPx = parsed.canvasWidthPx;
+                    if (parsed.canvasHeightPx) state.canvasHeightPx = parsed.canvasHeightPx;
+                    if (parsed.bgFillMode) state.bgFillMode = parsed.bgFillMode;
+                    if (parsed.bgType) state.bgType = parsed.bgType;
+                    if (parsed.customBgUrl) state.customBgUrl = parsed.customBgUrl;
+                    if (parsed.displayColumns) state.displayColumns = parsed.displayColumns;
+                    if (parsed.printBackground !== undefined) {
+                        state.printBackground = parsed.printBackground;
+                        const pbgToggle = document.getElementById('print-bg-toggle');
+                        if (pbgToggle) pbgToggle.checked = state.printBackground;
+                    }
+
+                    setPaperSizePreset(state.orientation || 'landscape');
+                    document.getElementById('bg-type-select').value = state.bgType;
+                    if (state.bgType === 'custom') {
+                        document.getElementById('upload-bg-box')?.classList.remove('hidden');
+                    }
+                    updateCanvasBackground();
+
+                    if (parsed.customFonts && Array.isArray(parsed.customFonts)) {
+                        state.customFonts = parsed.customFonts;
+                        const styleTag = document.getElementById('custom-fonts-style');
+                        styleTag.innerHTML = '';
+                        state.customFonts.forEach(font => {
+                            styleTag.innerHTML += `
+                                @font-face {
+                                    font-family: '${font.id}';
+                                    src: url('${font.dataUrl}');
+                                }
+                                .${font.id} {
+                                    font-family: '${font.id}', 'Noto Serif TC', serif;
+                                }
+                            `;
+                        });
+                        updateFontSelectOptions();
+                    }
+
+                    state.elements = parsed.elements;
+                    state.selectedElementId = state.elements[0]?.id || null;
+
+                    // Restore roster data if contained in the configuration file
+                    let importedRosterMsg = '';
+                    if (parsed.rosterData && Array.isArray(parsed.rosterData) && parsed.rosterData.length > 0) {
+                        state.rosterData = parsed.rosterData;
+                        state.rosterHeaders = parsed.rosterHeaders || Object.keys(parsed.rosterData[0]);
+                        state.selectedRosterIndices = parsed.selectedRosterIndices || state.rosterData.map((_, i) => i);
+                        renderRosterTable();
+                        renderVariableChips();
+                        importedRosterMsg = `，並已載入 ${state.rosterData.length} 筆名冊`;
+                    }
+
+                    renderElementsOnCanvas();
+                    renderElementsList();
+                    updateDisplayColumnsSelectors();
+                    if (state.selectedElementId) inspectElement(state.selectedElementId);
+
+                    showToast(`已成功匯入獎狀版面排版設定${importedRosterMsg}！`);
+                } catch (err) {
+                    console.error('Import error:', err);
+                    showToast('JSON 設定解析失敗', 'warning');
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
+
+            if (!toast || !toastMsg || !toastIcon) return;
+
+            toastMsg.innerText = msg;
+            if (type === 'warning') {
+                toastIcon.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-lg';
+            } else {
+                toastIcon.className = 'fa-solid fa-circle-check text-emerald-400 text-lg';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
