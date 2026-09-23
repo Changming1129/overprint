@@ -429,15 +429,21 @@
                                     <span>文字內部對齊：</span>
                                     <span id="current-text-align-label" class="font-semibold text-blue-600">置中</span>
                                 </div>
-                                <div class="grid grid-cols-3 gap-1.5">
-                                    <button type="button" onclick="setTextAlignment('left')" id="btn-align-left" class="align-btn py-1.5 px-2 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-1 transition">
-                                        <i class="fa-solid fa-align-left"></i> 靠左
+                                <div class="grid grid-cols-5 gap-1">
+                                    <button type="button" onclick="setTextAlignment('left')" id="btn-align-left" title="靠左對齊" class="align-btn py-1.5 px-1 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-0.5 transition">
+                                        <i class="fa-solid fa-align-left text-[11px]"></i> 靠左
                                     </button>
-                                    <button type="button" onclick="setTextAlignment('center')" id="btn-align-center" class="align-btn active py-1.5 px-2 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-1 transition">
-                                        <i class="fa-solid fa-align-center"></i> 置中
+                                    <button type="button" onclick="setTextAlignment('center')" id="btn-align-center" title="置中對齊" class="align-btn active py-1.5 px-1 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-0.5 transition">
+                                        <i class="fa-solid fa-align-center text-[11px]"></i> 置中
                                     </button>
-                                    <button type="button" onclick="setTextAlignment('right')" id="btn-align-right" class="align-btn py-1.5 px-2 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-1 transition">
-                                        <i class="fa-solid fa-align-right"></i> 靠右
+                                    <button type="button" onclick="setTextAlignment('right')" id="btn-align-right" title="靠右對齊" class="align-btn py-1.5 px-1 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-0.5 transition">
+                                        <i class="fa-solid fa-align-right text-[11px]"></i> 靠右
+                                    </button>
+                                    <button type="button" onclick="setTextAlignment('justify')" id="btn-align-justify" title="左右對齊 (段落多行等寬對齊)" class="align-btn py-1.5 px-1 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-0.5 transition">
+                                        <i class="fa-solid fa-align-justify text-[11px]"></i> 左右
+                                    </button>
+                                    <button type="button" onclick="setTextAlignment('distribute')" id="btn-align-distribute" title="分散對齊 (單行亦均勻撐滿寬度，適合姓名、標題)" class="align-btn py-1.5 px-1 border border-slate-200 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-0.5 transition">
+                                        <i class="fa-solid fa-arrows-left-right-to-line text-[11px]"></i> 分散
                                     </button>
                                 </div>
                             </div>
@@ -1285,7 +1291,20 @@
                 styleStr += ` width: ${el.width}px; height: ${el.height}px; opacity: ${el.opacity !== undefined ? el.opacity : 1}; transform: rotate(${el.rotation || 0}deg);`;
             } else {
                 if (el.width) styleStr += ` width: ${el.width}px;`;
-                styleStr += ` font-size: ${el.fontSize}px; color: ${el.color}; text-align: ${el.textAlign || 'center'};`;
+                
+                // Alignment style calculation including justify and distribute
+                let alignCss = 'text-align: center;';
+                if (el.textAlign === 'left') {
+                    alignCss = 'text-align: left;';
+                } else if (el.textAlign === 'right') {
+                    alignCss = 'text-align: right;';
+                } else if (el.textAlign === 'justify') {
+                    alignCss = 'text-align: justify; text-justify: inter-ideograph;';
+                } else if (el.textAlign === 'distribute') {
+                    alignCss = 'text-align: justify; text-align-last: justify; text-justify: inter-ideograph;';
+                }
+
+                styleStr += ` font-size: ${el.fontSize}px; color: ${el.color}; ${alignCss}`;
                 styleStr += ` font-weight: ${el.bold ? 'bold' : 'normal'}; font-style: ${el.italic ? 'italic' : 'normal'};`;
                 styleStr += ` letter-spacing: ${el.letterSpacing || 0}px; line-height: ${el.lineHeight || 1.2};`;
             }
@@ -1421,7 +1440,9 @@
 
                 let alignIcon = 'fa-align-center';
                 if (el.textAlign === 'left') alignIcon = 'fa-align-left';
-                if (el.textAlign === 'right') alignIcon = 'fa-align-right';
+                else if (el.textAlign === 'right') alignIcon = 'fa-align-right';
+                else if (el.textAlign === 'justify') alignIcon = 'fa-align-justify';
+                else if (el.textAlign === 'distribute') alignIcon = 'fa-arrows-left-right-to-line';
 
                 item.innerHTML = `
                     <div class="flex items-center space-x-2 truncate">
@@ -1698,16 +1719,25 @@
             updateAlignButtonsUI(alignMode);
             renderElementsOnCanvas();
             renderElementsList();
-            showToast(`文字對齊設定為「${alignMode === 'left' ? '靠左' : alignMode === 'center' ? '置中' : '靠右'}」`);
+            const modeNames = {
+                'left': '靠左',
+                'center': '置中',
+                'right': '靠右',
+                'justify': '左右對齊',
+                'distribute': '分散對齊'
+            };
+            showToast(`文字對齊設定為「${modeNames[alignMode] || '置中'}」`);
         }
 
         function updateAlignButtonsUI(alignMode) {
             const btnLeft = document.getElementById('btn-align-left');
             const btnCenter = document.getElementById('btn-align-center');
             const btnRight = document.getElementById('btn-align-right');
+            const btnJustify = document.getElementById('btn-align-justify');
+            const btnDistribute = document.getElementById('btn-align-distribute');
             const label = document.getElementById('current-text-align-label');
 
-            [btnLeft, btnCenter, btnRight].forEach(b => b?.classList.remove('active'));
+            [btnLeft, btnCenter, btnRight, btnJustify, btnDistribute].forEach(b => b?.classList.remove('active'));
 
             if (alignMode === 'left') {
                 btnLeft?.classList.add('active');
@@ -1715,6 +1745,12 @@
             } else if (alignMode === 'right') {
                 btnRight?.classList.add('active');
                 if (label) label.innerText = '靠右';
+            } else if (alignMode === 'justify') {
+                btnJustify?.classList.add('active');
+                if (label) label.innerText = '左右對齊';
+            } else if (alignMode === 'distribute') {
+                btnDistribute?.classList.add('active');
+                if (label) label.innerText = '分散對齊';
             } else {
                 btnCenter?.classList.add('active');
                 if (label) label.innerText = '置中';
